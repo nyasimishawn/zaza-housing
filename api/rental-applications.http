@@ -1,0 +1,155 @@
+@baseUrl = http://127.0.0.1:8080
+@tenantToken = replace-with-tenant-login-token
+@reviewerToken = replace-with-owner-or-agency-admin-token
+@organizationId = replace-with-organization-id
+@propertyId = replace-with-property-id
+@listingId = replace-with-published-listing-id
+@applicationId = replace-with-created-application-id
+@notificationId = replace-with-notification-id
+@applicationVersion = 0
+@listingVersion = 1
+@profileVersion = 0
+@moveInDate = 2030-01-01
+
+### Complete a private self-reported profile using the tenant token
+POST {{baseUrl}}/api/v1/me/tenant-profile
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"legalName":"Your name","phone":"+254711111111","countryCode":"KE","city":"Nairobi","employmentStatus":"EMPLOYED"}
+
+### Read the profile and current profileVersion
+GET {{baseUrl}}/api/v1/me/tenant-profile
+Authorization: Bearer {{tenantToken}}
+
+### Edit private profile; submitted applications retain their earlier snapshot
+PUT {{baseUrl}}/api/v1/me/tenant-profile
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"version":{{profileVersion}},"details":{"legalName":"Your updated name","phone":"+254711111111","countryCode":"KE","city":"Nairobi","employmentStatus":"SELF_EMPLOYED"}}
+
+### Read current public terms plus listingVersion; replace listingVersion above
+GET {{baseUrl}}/api/v1/me/application-listings/{{listingId}}
+Authorization: Bearer {{tenantToken}}
+
+### Create a private draft; choose your intended future moveInDate
+POST {{baseUrl}}/api/v1/me/applications
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"listingId":"{{listingId}}","listingVersion":{{listingVersion}},"details":{"householdSize":2,"requestedMoveInDate":"{{moveInDate}}","message":"I am interested in this rental."}}
+
+### Own application list and dashboard
+GET {{baseUrl}}/api/v1/me/applications?limit=50&offset=0
+Authorization: Bearer {{tenantToken}}
+
+### Own counts across all statuses
+GET {{baseUrl}}/api/v1/me/applications/summary
+Authorization: Bearer {{tenantToken}}
+
+### Reload before every mutation and update applicationVersion above
+GET {{baseUrl}}/api/v1/me/applications/{{applicationId}}
+Authorization: Bearer {{tenantToken}}
+
+### Edit a DRAFT or INFORMATION_REQUESTED application
+PUT {{baseUrl}}/api/v1/me/applications/{{applicationId}}
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"version":{{applicationVersion}},"details":{"householdSize":3,"requestedMoveInDate":"{{moveInDate}}","message":"Updated household details."}}
+
+### Submit or resubmit reviewed details/profile with explicit disclosure consent
+POST {{baseUrl}}/api/v1/me/applications/{{applicationId}}/submit
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"version":{{applicationVersion}},"profileVersion":{{profileVersion}},"listingVersion":{{listingVersion}},"consentToShare":true}
+
+### Reviewer queue; drafts that were never submitted remain hidden
+GET {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/applications?status=SUBMITTED
+Authorization: Bearer {{reviewerToken}}
+
+### Reviewer dashboard counts
+GET {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/applications/summary
+Authorization: Bearer {{reviewerToken}}
+
+### Reviewer detail and current application version
+GET {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/applications/{{applicationId}}
+Authorization: Bearer {{reviewerToken}}
+
+### Start review from SUBMITTED
+POST {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/applications/{{applicationId}}/review
+Authorization: Bearer {{reviewerToken}}
+Content-Type: application/json
+
+{"version":{{applicationVersion}}}
+
+### Append a private reviewer note; this does not increment applicationVersion
+POST {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/applications/{{applicationId}}/notes
+Authorization: Bearer {{reviewerToken}}
+Content-Type: application/json
+
+{"version":{{applicationVersion}},"text":"Internal review observations."}
+
+### Read private notes as an authorized reviewer
+GET {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/applications/{{applicationId}}/notes
+Authorization: Bearer {{reviewerToken}}
+
+### Request additional information; this message is shared with the applicant
+POST {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/applications/{{applicationId}}/request-information
+Authorization: Bearer {{reviewerToken}}
+Content-Type: application/json
+
+{"version":{{applicationVersion}},"message":"Please review and update your household details."}
+
+### If listing terms changed, review preview and refresh while the application is editable
+POST {{baseUrl}}/api/v1/me/applications/{{applicationId}}/refresh-listing
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"version":{{applicationVersion}},"listingVersion":{{listingVersion}}}
+
+### Approve only from UNDER_REVIEW; atomically reserves the available unit
+POST {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/applications/{{applicationId}}/approve
+Authorization: Bearer {{reviewerToken}}
+Content-Type: application/json
+
+{"version":{{applicationVersion}},"message":"Approved pending lease preparation."}
+
+### Alternative reviewer decision: reject with a shared reason
+POST {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/applications/{{applicationId}}/reject
+Authorization: Bearer {{reviewerToken}}
+Content-Type: application/json
+
+{"version":{{applicationVersion}},"message":"We are unable to proceed with this application."}
+
+### Cancel an APPROVED application and release only its tracked reservation
+POST {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/applications/{{applicationId}}/cancel-approval
+Authorization: Bearer {{reviewerToken}}
+Content-Type: application/json
+
+{"version":{{applicationVersion}},"message":"Approval cancelled before lease creation."}
+
+### Applicant withdrawal also releases an APPROVED reservation
+POST {{baseUrl}}/api/v1/me/applications/{{applicationId}}/withdraw
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"version":{{applicationVersion}}}
+
+### Shared application history contains no private reviewer notes
+GET {{baseUrl}}/api/v1/me/applications/{{applicationId}}/history?limit=50&offset=0
+Authorization: Bearer {{tenantToken}}
+
+### Tenant notifications and unread count
+GET {{baseUrl}}/api/v1/me/notifications?unreadOnly=true&limit=50
+Authorization: Bearer {{tenantToken}}
+
+### Unread summary
+GET {{baseUrl}}/api/v1/me/notifications/summary
+Authorization: Bearer {{tenantToken}}
+
+### Mark an owned notification read; repeat calls preserve its first read time
+PATCH {{baseUrl}}/api/v1/me/notifications/{{notificationId}}/read
+Authorization: Bearer {{tenantToken}}

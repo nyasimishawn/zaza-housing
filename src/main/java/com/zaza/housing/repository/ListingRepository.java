@@ -73,6 +73,10 @@ public class ListingRepository {
                 + " WHERE l.property_id = ? AND l.id = ?", listing, property, id).stream().findFirst();
     }
 
+    public Optional<RentalListing> applicationSource(UUID id) {
+        return jdbc.query("SELECT l.*, true AS publicly_visible " + FROM + " WHERE " + VISIBLE + " AND l.id = ?", listing, id).stream().findFirst();
+    }
+
     public List<RentalListing> list(UUID property, int limit, int offset) {
         return jdbc.query("SELECT l.*, COALESCE((" + VISIBLE + "), false) AS publicly_visible " + FROM
                 + " WHERE l.property_id = ? ORDER BY l.created_at, l.id LIMIT ? OFFSET ?", listing, property, limit, offset);

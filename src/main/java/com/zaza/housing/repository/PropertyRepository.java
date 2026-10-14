@@ -57,6 +57,10 @@ public class PropertyRepository {
                 """ + (lock ? " FOR UPDATE" : ""), PROPERTY, id, organization, organization).stream().findFirst();
     }
 
+    public Optional<Property> findByIdForUpdate(UUID id) {
+        return jdbc.query("SELECT * FROM properties WHERE id = ? FOR UPDATE", PROPERTY, id).stream().findFirst();
+    }
+
     public List<Property> list(UUID organization, PropertyStatus status, PropertyType type, String city, int limit, int offset) {
         StringBuilder sql = new StringBuilder("SELECT * FROM properties WHERE (owner_organization_id = ? OR manager_organization_id = ?)");
         List<Object> parameters = new ArrayList<>(List.of(organization, organization));
