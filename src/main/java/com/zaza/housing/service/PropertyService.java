@@ -20,6 +20,7 @@ import com.zaza.housing.model.Property;
 import com.zaza.housing.model.PropertyUnit;
 import com.zaza.housing.repository.OrganizationRepository;
 import com.zaza.housing.repository.PropertyRepository;
+import com.zaza.housing.repository.RentalApplicationRepository;
 import com.zaza.housing.util.Pagination;
 import java.util.Arrays;
 import java.util.Currency;
@@ -39,13 +40,14 @@ public class PropertyService {
     private final OrganizationRepository memberships;
     private final OrganizationService organizations;
     private final AuditService audit;
+    private final RentalApplicationRepository applications;
 
     public PropertyService(PropertyRepository properties, OrganizationRepository memberships,
-            OrganizationService organizations, AuditService audit) {
+            OrganizationService organizations, AuditService audit, RentalApplicationRepository applications) {
         this.properties = properties;
         this.memberships = memberships;
         this.organizations = organizations;
-        this.audit = audit;
+        this.audit = audit; this.applications = applications;
     }
 
     @Transactional
@@ -80,6 +82,17 @@ public class PropertyService {
     @Transactional(propagation = Propagation.MANDATORY)
     public Property lockForManagement(AuthenticatedUser actor, UUID organizationId, UUID id) {
         return access(actor, organizationId, id, true);
+    }
+
+    public Property getForManagement(AuthenticatedUser actor, UUID organizationId, UUID id) {
+        Property result = access(actor, organizationId, id, false);
+        requireManager(organizations.get(actor, organizationId));
+        return result;
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Property lockForApplication(UUID id) {
+        return properties.findByIdForUpdate(id).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Property not found."));
     }
 
     @Transactional
@@ -141,6 +154,9 @@ public class PropertyService {
     public PropertyUnit updateUnit(AuthenticatedUser actor, UUID organizationId, UUID propertyId, UUID id, UpdateUnitRequest request) {
         requireOpen(access(actor, organizationId, propertyId, true));
         PropertyUnit previous = findUnit(propertyId, id);
+        if (applications.reserved(propertyId, id)) {
+            throw new ApiException(HttpStatus.CONFLICT, "Cancel or withdraw the approved application before changing this reserved unit.");
+        }
         if (previous.status() == UnitStatus.ARCHIVED) {
             throw new ApiException(HttpStatus.CONFLICT, "Restore the unit before editing it.");
         }
@@ -154,6 +170,9 @@ public class PropertyService {
     public PropertyUnit changeUnitStatus(AuthenticatedUser actor, UUID organizationId, UUID propertyId, UUID id, ChangeUnitStatusRequest request) {
         requireOpen(access(actor, organizationId, propertyId, true));
         PropertyUnit previous = findUnit(propertyId, id);
+        if (applications.reserved(propertyId, id)) {
+            throw new ApiException(HttpStatus.CONFLICT, "Cancel or withdraw the approved application before changing this reserved unit.");
+        }
         checkVersion(previous.version(), request.version());
         properties.changeUnitStatus(propertyId, id, request.version(), request.status());
         return recordUnit(actor, organizationId, previous, "UNIT_STATUS_CHANGED");

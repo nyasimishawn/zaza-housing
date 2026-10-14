@@ -1,0 +1,3 @@
+package com.zaza.housing.enums;
+
+public enum ApplicationStatus { DRAFT, SUBMITTED, UNDER_REVIEW, INFORMATION_REQUESTED, APPROVED, REJECTED, WITHDRAWN, CANCELLED }

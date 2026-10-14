@@ -26,6 +26,7 @@ import java.util.Locale;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -106,6 +107,16 @@ public class ListingService {
         checkVersion(previous.version(), request.version());
         listings.withdraw(propertyId, id, request.version());
         return record(actor, organization, previous, "LISTING_WITHDRAWN");
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public RentalListing applicationSource(UUID id) {
+        RentalListing candidate = listings.applicationSource(id).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Listing not found."));
+        properties.lockForApplication(candidate.propertyId());
+        // All listing and inventory writes use this property lock. Recheck visibility after waiting.
+        RentalListing current = find(candidate.propertyId(), id);
+        if (!current.publiclyVisible()) throw new ApiException(HttpStatus.NOT_FOUND, "Listing not found.");
+        return current;
     }
 
     public PublicListingResponse publicListing(UUID id) {
