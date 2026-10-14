@@ -108,7 +108,7 @@ public class ListingService {
     public ListingSearchResponse search(ListingSearchRequest query) {
         int limit = query.limit() == null ? 50 : query.limit();
         int offset = query.offset() == null ? 0 : query.offset();
-        if (query.q() != null && query.q().trim().length() < 2) throw badRequest("ListingSearchRequest text must contain at least two characters.");
+        if (query.q() != null && query.q().trim().length() < 2) throw badRequest("Search text must contain at least two characters.");
         if (query.city() != null && query.city().isBlank()) throw badRequest("City cannot be blank.");
         if (query.countryCode() != null && !Arrays.asList(Locale.getISOCountries()).contains(query.countryCode().toUpperCase(Locale.ROOT))) {
             throw badRequest("Use a valid ISO country code.");
