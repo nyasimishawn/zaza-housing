@@ -5,10 +5,12 @@ import com.zaza.housing.dto.ListingSearchResponse;
 import com.zaza.housing.dto.PublicListingResponse;
 import com.zaza.housing.service.ListingService;
 import com.zaza.housing.service.PropertyImageService;
+import com.zaza.housing.service.PropertyVideoService;
 import com.zaza.housing.util.ImageHttpResponse;
-import org.springframework.core.io.Resource;
+import com.zaza.housing.util.VideoHttpResponse;
 import jakarta.validation.Valid;
 import java.util.UUID;
+import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,7 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class PublicListingController {
     private final ListingService listings;
     private final PropertyImageService images;
-    public PublicListingController(ListingService listings, PropertyImageService images) { this.listings = listings; this.images = images; }
+    private final PropertyVideoService videos;
+    public PublicListingController(ListingService listings, PropertyImageService images, PropertyVideoService videos) { this.listings = listings; this.images = images; this.videos = videos; }
     @GetMapping
     public ResponseEntity<ListingSearchResponse> search(@Valid @ModelAttribute ListingSearchRequest query) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(listings.search(query));
@@ -34,5 +37,9 @@ public class PublicListingController {
     @GetMapping("/{id}/images/{imageId}")
     public ResponseEntity<Resource> image(@PathVariable UUID id, @PathVariable UUID imageId) {
         return ImageHttpResponse.content(images.publicContent(listings.publicListing(id), imageId));
+    }
+    @GetMapping("/{id}/videos/{videoId}")
+    public ResponseEntity<Resource> video(@PathVariable UUID id, @PathVariable UUID videoId) {
+        return VideoHttpResponse.content(videos.publicContent(listings.publicListing(id), videoId));
     }
 }

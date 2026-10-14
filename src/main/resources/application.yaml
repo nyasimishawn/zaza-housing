@@ -5,8 +5,8 @@ spring:
     name: zaza
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 11MB
+      max-file-size: 50MB
+      max-request-size: 51MB
   datasource:
     url: ${ZAZA_DB_URL:jdbc:postgresql://localhost:5432/zaza}
     username: ${ZAZA_DB_USER:admin}
@@ -36,6 +36,10 @@ management:
     health:
       show-details: never
 zaza:
+  videos:
+    directory: ${ZAZA_VIDEO_DIRECTORY:.local-videos}
+    ffmpeg: ${ZAZA_FFMPEG:.tools/ffmpeg/bin/ffmpeg.exe}
+    ffprobe: ${ZAZA_FFPROBE:.tools/ffmpeg/bin/ffprobe.exe}
   images:
     directory: ${ZAZA_IMAGE_DIRECTORY:.local-images}
   auth:

@@ -58,7 +58,7 @@ The app binds to localhost by default. Set the exact Flutter web origin in `ZAZA
 
 ## API
 
-All requests/responses use JSON. Private APIs require `Authorization: Bearer <accessToken>`.
+Structured requests/responses use JSON; image/video uploads use multipart form data and content routes serve media bytes. Private APIs require `Authorization: Bearer <accessToken>`.
 
 `api/foundation.http` contains editable example requests for IntelliJ's HTTP client. Replace the example variables with your own local test account; keep real credentials and tokens in the client's private environment rather than committing them to the request file.
 
@@ -142,4 +142,9 @@ The tests cover password/token storage, invalid credentials, logout, independent
 
 ## Scope of this first foundation slice
 
-This establishes account, organization, access-control, migration, audit, and test foundations, private property/unit inventory, and public rental listings/search. Flutter still uses Firebase and has not been switched to these APIs. Existing Firebase users are not imported automatically. Email verification/delivery, password recovery, MFA, session listing/revoke-all, fine-grained agent/provider permissions, user-admin management, media, and remaining business workflows are subsequent work. Complete and test email verification before using claimed email addresses for trusted business onboarding.
+This establishes account, organization, access-control, migration, audit, and test foundations, private property/unit inventory, public rental listings/search, and private images/videos with approved public galleries. Flutter still uses Firebase and has not been switched to these APIs. Existing Firebase users are not imported automatically. Email verification/delivery, password recovery, MFA, session listing/revoke-all, fine-grained agent/provider permissions, user-admin management, additional media workflows, and remaining business workflows are subsequent work. Complete and test email verification before using claimed email addresses for trusted business onboarding.
+
+
+## Property media
+
+Private images and approved public galleries are documented in `docs/property-images.md`, with requests in `api/property-images.http`. Private videos and approved listing playback are documented in `docs/property-videos.md`, with requests in `api/property-videos.http`. Install FFmpeg/FFprobe using `.\scripts\install-video-tools.ps1` before video uploads and the integration suite. Files remain private until explicitly selected when publishing a listing.

@@ -44,3 +44,6 @@ http-client.private.env.json
 *.private.env.json
 .work/
 .local-images/
+
+.local-videos/
+.tools/

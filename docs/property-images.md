@@ -19,7 +19,7 @@ Follow `api/property-images.http` in IntelliJ's HTTP client. Replace its account
 ## Upload and storage rules
 
 - Only decoded JPEG and PNG images are accepted, verified from their bytes. Filename and declared MIME type do not choose the format or storage path. PDFs, SVG, GIF, video, corrupt data, and empty files are rejected.
-- Maximum original file size: 10 MB; maximum multipart request: 11 MB. Images can contain at most 10 million pixels, with each original dimension at most 10,000 pixels.
+- Maximum original file size: 10 MB; maximum multipart request: 51 MB (shared with video uploads). Images can contain at most 10 million pixels, with each original dimension at most 10,000 pixels.
 - Images are resized to at most 1,600 pixels on the longest edge without enlarging smaller pictures. JPEG EXIF rotation/mirroring is applied before metadata is stripped; PNG alpha is preserved.
 - A fresh raster is encoded as JPEG/PNG. Original EXIF/GPS, text metadata, uploaded filenames, and trailing bytes are not stored. Processed bytes are immutable; upload a new image to replace a photo.
 - Descriptions (`altText`) are editable, trimmed, and limited to 200 characters. They may be empty. A property can have at most 30 active images.
@@ -79,4 +79,6 @@ Tests use `zaza_foundation_test`, with generated test images under `.work/image-
 
 ## Remaining media work
 
-This slice handles static JPEG/PNG photos using private local storage. Video, WebP/HEIC, ownership/document uploads, cloud object storage/CDN, malware-scanning infrastructure, retention cleanup, shared storage for multiple instances, and Flutter upload/gallery screens remain future work.
+This slice handles static JPEG/PNG photos using private local storage. WebP/HEIC, ownership/document uploads, cloud object storage/CDN, malware-scanning infrastructure, retention cleanup, shared storage for multiple instances, and Flutter upload/gallery screens remain future work.
+
+MP4/MOV video uploads are covered by `docs/property-videos.md`.
