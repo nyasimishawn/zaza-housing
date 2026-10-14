@@ -1,0 +1,87 @@
+@baseUrl = http://127.0.0.1:8080
+@accessToken = replace-with-token-from-login
+@organizationId = replace-with-landlord-or-agency-organization-id
+@propertyId = replace-with-property-id
+@unitId = replace-with-unit-id
+@agencyOrganizationId = replace-with-agency-organization-id
+@propertyVersion = 0
+@unitVersion = 0
+
+### Register a property owned by your organization
+POST {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"name":"Riverside Apartments","description":"Apartments near the town centre","type":"APARTMENT","countryCode":"KE","city":"Nairobi","address":"Example address","latitude":-1.2921,"longitude":36.8219}
+
+### List properties owned by or delegated to your organization
+GET {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties?limit=50&offset=0
+Authorization: Bearer {{accessToken}}
+
+### Read a property; copy its current version before each mutation
+GET {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}
+Authorization: Bearer {{accessToken}}
+
+### Replace editable property details
+PUT {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":{{propertyVersion}},"details":{"name":"Riverside Apartments","description":"Updated description","type":"APARTMENT","countryCode":"KE","city":"Nairobi","address":"Example address","latitude":-1.2921,"longitude":36.8219}}
+
+### Set internal property status as the owning organization's owner/admin
+PATCH {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/status
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":{{propertyVersion}},"status":"ACTIVE"}
+
+### Delegate this property to an agency, retaining ownership
+PATCH {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/management
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":{{propertyVersion}},"managerOrganizationId":"{{agencyOrganizationId}}"}
+
+### Revoke agency access, including when archived
+PATCH {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/management
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":{{propertyVersion}},"managerOrganizationId":null}
+
+### Add a rental unit
+POST {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/units
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"label":"A-01","bedrooms":2,"bathrooms":1,"floorAreaSqm":72.50,"monthlyRent":25000.50,"deposit":50000.00,"currency":"KES","availability":"AVAILABLE"}
+
+### List available units; default excludes archived units
+GET {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/units?availability=AVAILABLE&limit=50&offset=0
+Authorization: Bearer {{accessToken}}
+
+### Read unit details and current version
+GET {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/units/{{unitId}}
+Authorization: Bearer {{accessToken}}
+
+### Replace unit details using the most recent unit version
+PUT {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/units/{{unitId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":{{unitVersion}},"details":{"label":"A-01","bedrooms":2,"bathrooms":1,"floorAreaSqm":72.50,"monthlyRent":26000.00,"deposit":50000.00,"currency":"KES","availability":"UNAVAILABLE"}}
+
+### Archive a unit; use ACTIVE to restore
+PATCH {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/units/{{unitId}}/status
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":{{unitVersion}},"status":"ARCHIVED"}
+
+### Archive a property; use DRAFT or ACTIVE to restore
+PATCH {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/status
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":{{propertyVersion}},"status":"ARCHIVED"}

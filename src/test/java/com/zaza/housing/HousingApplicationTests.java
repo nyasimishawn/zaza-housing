@@ -1,6 +1,6 @@
 package com.zaza.housing;
 
-import com.zaza.housing.auth.AuthService;
+import com.zaza.housing.util.TokenUtils;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -16,9 +16,9 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import static org.assertj.core.api.Assertions.*;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
-import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -66,7 +66,7 @@ class HousingApplicationTests {
         String secondToken = login(account.email);
         assertThat(call("GET", "/api/v1/me", null, account.token).statusCode()).isEqualTo(200);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM auth_sessions WHERE token_hash = ?", Integer.class,
-                AuthService.hashToken(account.token))).isEqualTo(1);
+                TokenUtils.hashToken(account.token))).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM auth_sessions WHERE token_hash = ?", Integer.class,
                 account.token)).isZero();
         assertThat(call("POST", "/api/v1/auth/logout", null, account.token).statusCode()).isEqualTo(204);
@@ -79,7 +79,7 @@ class HousingApplicationTests {
     void expiredSessionsAndDisabledAccountsAreRejected() throws Exception {
         Account expired = account();
         jdbc.update("UPDATE auth_sessions SET created_at = now() - interval '2 hours', expires_at = now() - interval '1 hour' WHERE token_hash = ?",
-                AuthService.hashToken(expired.token));
+                TokenUtils.hashToken(expired.token));
         assertThat(call("GET", "/api/v1/me", null, expired.token).statusCode()).isEqualTo(401);
         Account disabled = account();
         jdbc.update("UPDATE app_users SET active = false WHERE id = ?", disabled.id);
