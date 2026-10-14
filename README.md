@@ -1,6 +1,8 @@
-# Zaza backend foundation
+# Zaza backend
 
 Java 24 / Spring Boot 4.1.1 / PostgreSQL. The existing Gradle wrapper is retained.
+
+Private property and rental-unit management is now implemented. See [the property management guide](docs/property-management.md) and `api/property-management.http` for ownership, agency delegation, pricing, availability, version checks, and archival.
 
 ## Start locally
 
@@ -116,4 +118,4 @@ The tests cover password/token storage, invalid credentials, logout, independent
 
 ## Scope of this first foundation slice
 
-This establishes the backend's account, organization, access-control, migration, audit, and test foundations. Flutter still uses Firebase and has not been switched to these APIs. Existing Firebase users are not imported automatically. Email verification/delivery, password recovery, MFA, session listing/revoke-all, fine-grained agent/provider permissions, user-admin management, property APIs, and the remaining business workflows are subsequent work. Complete and test email verification before using claimed email addresses for trusted business onboarding.
+This establishes account, organization, access-control, migration, audit, and test foundations plus private property/unit inventory. Flutter still uses Firebase and has not been switched to these APIs. Existing Firebase users are not imported automatically. Email verification/delivery, password recovery, MFA, session listing/revoke-all, fine-grained agent/provider permissions, user-admin management, public listings/search, media, and remaining business workflows are subsequent work. Complete and test email verification before using claimed email addresses for trusted business onboarding.
