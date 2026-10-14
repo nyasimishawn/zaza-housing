@@ -26,6 +26,8 @@ Private property and rental-unit management is now implemented. See [the propert
 
 Rental listing drafts/publication and guest search are implemented in [the public listings guide](docs/public-listings.md), with examples in `api/public-listings.http`. Guest GET `/api/v1/listings` exposes only explicitly published, currently available offers.
 
+Private property image uploads and approved public galleries are implemented in [the images guide](docs/property-images.md) and `api/property-images.http`. JPEG/PNG photos are resized, normalized, and stripped of original metadata. Configure private local storage with `ZAZA_IMAGE_DIRECTORY` (default `.local-images`).
+
 ## Start locally
 
 PostgreSQL must already contain database `zaza` and login `admin`, with permission to create tables and functions in the database's `public` schema. The service does not create or replace database users or databases. Flyway creates and versions the foundation tables on startup; it refuses an existing nonempty schema without migration history rather than automatically baselining it.
