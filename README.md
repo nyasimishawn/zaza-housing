@@ -2,6 +2,26 @@
 
 Java 24 / Spring Boot 4.1.1 / PostgreSQL. The existing Gradle wrapper is retained.
 
+## Code structure
+
+All features use shared layer packages under `src/main/java/com/zaza/housing`:
+
+```text
+controller/  HTTP endpoints; delegate to services
+service/     Business rules, authorization, transactions
+repository/  SQL, persistence, row mapping
+model/       Domain records
+dto/         Request and response types, one public type per file
+enums/       Domain enums
+config/      Spring/security configuration
+filter/      Authentication and rate-limit filters
+security/    Security response helpers
+exception/   API errors and exception handling
+util/        Pagination, email normalization, token hashing
+```
+
+Extend the relevant existing layer classes for new behavior. Controllers/services do not contain request or response records, controllers do not query repositories directly, and service classes do not contain SQL. `AGENTS.md` records these conventions for future changes.
+
 Private property and rental-unit management is now implemented. See [the property management guide](docs/property-management.md) and `api/property-management.http` for ownership, agency delegation, pricing, availability, version checks, and archival.
 
 Rental listing drafts/publication and guest search are implemented in [the public listings guide](docs/public-listings.md), with examples in `api/public-listings.http`. Guest GET `/api/v1/listings` exposes only explicitly published, currently available offers.
