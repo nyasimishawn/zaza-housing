@@ -8,9 +8,14 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    ProblemDetail oversizedUpload(MaxUploadSizeExceededException error) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.PAYLOAD_TOO_LARGE, "Images must be at most 10 MB; the upload request must be at most 11 MB.");
+    }
     @ExceptionHandler(ApiException.class)
     ProblemDetail applicationError(ApiException error) {
         return ProblemDetail.forStatusAndDetail(error.status(), error.getMessage());

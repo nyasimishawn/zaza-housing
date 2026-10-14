@@ -1,6 +1,7 @@
 package com.zaza.housing.repository;
 
 import com.zaza.housing.dto.CreateListingRequest;
+import com.zaza.housing.dto.ImageReferenceRequest;
 import com.zaza.housing.dto.ListingSearchRequest;
 import com.zaza.housing.dto.PublicListingResponse;
 import com.zaza.housing.dto.PublishListingRequest;
@@ -28,6 +29,9 @@ public class ListingRepository {
             l.status = 'PUBLISHED' AND p.status = 'ACTIVE' AND u.status = 'ACTIVE' AND u.availability = 'AVAILABLE'
             AND l.source_property_version = p.version AND l.source_unit_version = u.version
             AND (l.publisher_organization_id = p.owner_organization_id OR l.publisher_organization_id = p.manager_organization_id)
+            AND NOT EXISTS (SELECT 1 FROM listing_image_references r LEFT JOIN property_images i
+                ON i.id = r.image_id AND i.property_id = r.property_id WHERE r.listing_id = l.id
+                AND (i.id IS NULL OR i.status <> 'ACTIVE' OR i.version <> r.image_version))
             """;
     private static final String FROM = """
             FROM rental_listings l JOIN properties p ON p.id = l.property_id
@@ -100,6 +104,15 @@ public class ListingRepository {
     public Optional<PublicListingResponse> publicListing(UUID id) {
         return jdbc.query("SELECT l.public_snapshot " + FROM + " WHERE " + VISIBLE + " AND l.id = ?",
                 (rs, row) -> json.readValue(rs.getString("public_snapshot"), PublicListingResponse.class), id).stream().findFirst();
+    }
+
+    public void replaceImageReferences(UUID property, UUID listing, List<ImageReferenceRequest> images) {
+        jdbc.update("DELETE FROM listing_image_references WHERE listing_id = ?", listing);
+        for (int index = 0; index < images.size(); index++) {
+            var image = images.get(index);
+            jdbc.update("INSERT INTO listing_image_references(listing_id, property_id, image_id, image_version, position) VALUES (?, ?, ?, ?, ?)",
+                    listing, property, image.id(), image.version(), index);
+        }
     }
 
     public List<PublicListingResponse> search(ListingSearchRequest query, int limit, int offset) {

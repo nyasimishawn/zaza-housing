@@ -1,0 +1,62 @@
+@baseUrl = http://127.0.0.1:8080
+@accessToken = replace-with-login-token
+@organizationId = replace-with-organization-id
+@propertyId = replace-with-property-id
+@listingId = replace-with-listing-id
+@imageId = replace-with-image-id
+@imagePath = C:/path/to/your/photo.jpg
+@imageVersion = 0
+@listingVersion = 0
+@propertyVersion = 1
+@unitVersion = 0
+
+### Upload an existing local JPEG/PNG privately; replace imagePath above
+POST {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/images
+Authorization: Bearer {{accessToken}}
+Content-Type: multipart/form-data; boundary=ImageUploadBoundary
+
+--ImageUploadBoundary
+Content-Disposition: form-data; name="file"; filename="photo.jpg"
+Content-Type: image/jpeg
+
+< {{imagePath}}
+--ImageUploadBoundary
+Content-Disposition: form-data; name="altText"
+
+Living room
+--ImageUploadBoundary--
+
+### Read image metadata/current versions; default excludes archived images
+GET {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/images?limit=50&offset=0
+Authorization: Bearer {{accessToken}}
+
+### View private image bytes as a member of the owning or delegated organization
+GET {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/images/{{imageId}}/content
+Authorization: Bearer {{accessToken}}
+
+### Update its description; published uses of the old version become hidden
+PUT {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/images/{{imageId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":{{imageVersion}},"altText":"Bright living room"}
+
+### Select approved images when publishing; always use current source and image versions
+POST {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/listings/{{listingId}}/publish
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":{{listingVersion}},"propertyVersion":{{propertyVersion}},"unitVersion":{{unitVersion}},"images":[{"id":"{{imageId}}","version":{{imageVersion}}}]}
+
+### Guest listing metadata now includes an images array
+GET {{baseUrl}}/api/v1/listings/{{listingId}}
+
+### Guest image bytes; works only if this image is selected in a currently visible listing
+GET {{baseUrl}}/api/v1/listings/{{listingId}}/images/{{imageId}}
+
+### Archive privately; use ACTIVE to restore, then review/re-publish the listing
+PATCH {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/images/{{imageId}}/status
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":{{imageVersion}},"status":"ARCHIVED"}
