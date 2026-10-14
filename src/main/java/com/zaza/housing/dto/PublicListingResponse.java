@@ -10,6 +10,7 @@ import java.util.List;
 public record PublicListingResponse(UUID id, String title, String description, PropertyType propertyType,
         String countryCode, String city, String address, BigDecimal latitude, BigDecimal longitude,
         int bedrooms, int bathrooms, BigDecimal floorAreaSqm, BigDecimal monthlyRent,
-        BigDecimal deposit, String currency, Instant publishedAt, List<PublicImageResponse> images) {
-    public PublicListingResponse { images = images == null ? List.of() : List.copyOf(images); }
+        BigDecimal deposit, String currency, Instant publishedAt, List<PublicImageResponse> images, List<PublicVideoResponse> videos) {
+    public PublicListingResponse { images = images == null ? List.of() : List.copyOf(images);
+        videos = videos == null ? List.of() : List.copyOf(videos); }
 }

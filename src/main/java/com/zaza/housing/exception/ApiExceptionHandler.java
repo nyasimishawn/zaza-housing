@@ -14,7 +14,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 public class ApiExceptionHandler {
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     ProblemDetail oversizedUpload(MaxUploadSizeExceededException error) {
-        return ProblemDetail.forStatusAndDetail(HttpStatus.PAYLOAD_TOO_LARGE, "Images must be at most 10 MB; the upload request must be at most 11 MB.");
+        return ProblemDetail.forStatusAndDetail(HttpStatus.PAYLOAD_TOO_LARGE, "Files must be at most 50 MB; the upload request must be at most 51 MB. Images remain limited to 10 MB.");
     }
     @ExceptionHandler(ApiException.class)
     ProblemDetail applicationError(ApiException error) {

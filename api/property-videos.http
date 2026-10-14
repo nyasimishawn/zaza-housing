@@ -1,0 +1,66 @@
+@baseUrl = http://127.0.0.1:8080
+@accessToken = replace-with-login-token
+@organizationId = replace-with-organization-id
+@propertyId = replace-with-property-id
+@listingId = replace-with-listing-id
+@videoId = replace-with-video-id
+@videoPath = C:/path/to/your/clip.mp4
+@videoVersion = 0
+@listingVersion = 0
+@propertyVersion = 1
+@unitVersion = 0
+
+### Upload an existing local MP4/MOV privately; replace videoPath above
+POST {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/videos
+Authorization: Bearer {{accessToken}}
+Content-Type: multipart/form-data; boundary=VideoUploadBoundary
+
+--VideoUploadBoundary
+Content-Disposition: form-data; name="file"; filename="clip.mp4"
+Content-Type: video/mp4
+
+< {{videoPath}}
+--VideoUploadBoundary
+Content-Disposition: form-data; name="caption"
+
+Property walkthrough
+--VideoUploadBoundary--
+
+### Read video metadata/current versions; default excludes archived videos
+GET {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/videos?limit=50&offset=0
+Authorization: Bearer {{accessToken}}
+
+### View private video bytes as a member of the owning or delegated organization
+GET {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/videos/{{videoId}}/content
+Authorization: Bearer {{accessToken}}
+
+### Update its caption; published uses of the old version become hidden
+PUT {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/videos/{{videoId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":{{videoVersion}},"caption":"Updated walkthrough caption"}
+
+### Select approved videos when publishing; always use current source and video versions
+POST {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/listings/{{listingId}}/publish
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":{{listingVersion}},"propertyVersion":{{propertyVersion}},"unitVersion":{{unitVersion}},"images":[],"videos":[{"id":"{{videoId}}","version":{{videoVersion}}}]}
+
+### Guest listing metadata now includes a videos array
+GET {{baseUrl}}/api/v1/listings/{{listingId}}
+
+### Guest video bytes; works only if this video is selected in a currently visible listing
+GET {{baseUrl}}/api/v1/listings/{{listingId}}/videos/{{videoId}}
+
+### Archive privately; use ACTIVE to restore, then review/re-publish the listing
+PATCH {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/videos/{{videoId}}/status
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":{{videoVersion}},"status":"ARCHIVED"}
+
+### Seek within an approved public video
+GET {{baseUrl}}/api/v1/listings/{{listingId}}/videos/{{videoId}}
+Range: bytes=0-999

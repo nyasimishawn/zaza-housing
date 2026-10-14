@@ -35,10 +35,11 @@ public class ListingService {
     private final AuditService audit;
     private final Clock clock;
     private final PropertyImageService images;
+    private final PropertyVideoService videos;
 
-    public ListingService(ListingRepository listings, PropertyService properties, AuditService audit, Clock clock, PropertyImageService images) {
+    public ListingService(ListingRepository listings, PropertyService properties, AuditService audit, Clock clock, PropertyImageService images, PropertyVideoService videos) {
         this.listings = listings; this.properties = properties; this.audit = audit; this.clock = clock;
-        this.images = images;
+        this.images = images; this.videos = videos;
     }
 
     @Transactional
@@ -89,9 +90,11 @@ public class ListingService {
                 property.countryCode(), property.city(), disclose ? property.address() : null,
                 disclose ? property.latitude() : null, disclose ? property.longitude() : null,
                 unit.bedrooms(), unit.bathrooms(), unit.floorAreaSqm(), unit.monthlyRent(), unit.deposit(), unit.currency(), clock.instant(),
-                images.forPublication(actor, organization, propertyId, id, request.images()));
+                images.forPublication(actor, organization, propertyId, id, request.images()),
+                videos.forPublication(actor, organization, propertyId, id, request.videos()));
         listings.publish(propertyId, id, organization, request, snapshot);
         listings.replaceImageReferences(propertyId, id, request.images());
+        listings.replaceVideoReferences(propertyId, id, request.videos());
         return record(actor, organization, previous, "LISTING_PUBLISHED");
     }
 

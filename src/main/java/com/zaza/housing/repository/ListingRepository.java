@@ -6,6 +6,7 @@ import com.zaza.housing.dto.ListingSearchRequest;
 import com.zaza.housing.dto.PublicListingResponse;
 import com.zaza.housing.dto.PublishListingRequest;
 import com.zaza.housing.dto.UpdateListingRequest;
+import com.zaza.housing.dto.VideoReferenceRequest;
 import com.zaza.housing.enums.ListingSort;
 import com.zaza.housing.enums.ListingStatus;
 import com.zaza.housing.exception.ApiException;
@@ -32,6 +33,9 @@ public class ListingRepository {
             AND NOT EXISTS (SELECT 1 FROM listing_image_references r LEFT JOIN property_images i
                 ON i.id = r.image_id AND i.property_id = r.property_id WHERE r.listing_id = l.id
                 AND (i.id IS NULL OR i.status <> 'ACTIVE' OR i.version <> r.image_version))
+            AND NOT EXISTS (SELECT 1 FROM listing_video_references r LEFT JOIN property_videos v
+                ON v.id = r.video_id AND v.property_id = r.property_id WHERE r.listing_id = l.id
+                AND (v.id IS NULL OR v.status <> 'ACTIVE' OR v.version <> r.video_version))
             """;
     private static final String FROM = """
             FROM rental_listings l JOIN properties p ON p.id = l.property_id
@@ -112,6 +116,15 @@ public class ListingRepository {
             var image = images.get(index);
             jdbc.update("INSERT INTO listing_image_references(listing_id, property_id, image_id, image_version, position) VALUES (?, ?, ?, ?, ?)",
                     listing, property, image.id(), image.version(), index);
+        }
+    }
+
+    public void replaceVideoReferences(UUID property, UUID listing, List<VideoReferenceRequest> videos) {
+        jdbc.update("DELETE FROM listing_video_references WHERE listing_id = ?", listing);
+        for (int index = 0; index < videos.size(); index++) {
+            var video = videos.get(index);
+            jdbc.update("INSERT INTO listing_video_references(listing_id, property_id, video_id, video_version, position) VALUES (?, ?, ?, ?, ?)",
+                    listing, property, video.id(), video.version(), index);
         }
     }
 
