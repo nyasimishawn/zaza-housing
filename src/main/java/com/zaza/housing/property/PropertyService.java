@@ -13,6 +13,7 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 import static com.zaza.housing.property.PropertyRequests.*;
 
 @Service
@@ -58,6 +59,11 @@ public class PropertyService {
 
     public Property get(AuthenticatedUser actor, UUID organizationId, UUID id) {
         return access(actor, organizationId, id, false);
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Property lockForManagement(AuthenticatedUser actor, UUID organizationId, UUID id) {
+        return access(actor, organizationId, id, true);
     }
 
     @Transactional

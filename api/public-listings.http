@@ -1,0 +1,62 @@
+@baseUrl = http://127.0.0.1:8080
+@accessToken = replace-with-login-token
+@organizationId = replace-with-owner-or-delegated-agency-organization-id
+@propertyId = replace-with-property-id
+@unitId = replace-with-unit-id
+@listingId = replace-with-listing-id
+@listingVersion = 0
+@propertyVersion = 0
+@unitVersion = 0
+
+### Create a private draft for an existing unit
+POST {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/listings
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"unitId":"{{unitId}}","details":{"title":"Bright two-bedroom apartment","description":"A spacious rental near the town centre.","showExactLocation":false}}
+
+### List private listings for this property
+GET {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/listings?limit=50&offset=0
+Authorization: Bearer {{accessToken}}
+
+### Read current listing version, publication snapshot, and publiclyVisible flag
+GET {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/listings/{{listingId}}
+Authorization: Bearer {{accessToken}}
+
+### Read source versions and verify details before publishing
+GET {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}
+Authorization: Bearer {{accessToken}}
+
+### Source unit must be ACTIVE and AVAILABLE
+GET {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/units/{{unitId}}
+Authorization: Bearer {{accessToken}}
+
+### Publish/re-publish reviewed details; source property must be ACTIVE
+POST {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/listings/{{listingId}}/publish
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":{{listingVersion}},"propertyVersion":{{propertyVersion}},"unitVersion":{{unitVersion}}}
+
+### Guest browsing - no token required
+GET {{baseUrl}}/api/v1/listings?limit=20&offset=0
+
+### Guest search with filters; specify currency for price comparisons
+GET {{baseUrl}}/api/v1/listings?q=apartment&city=Nairobi&countryCode=KE&type=APARTMENT&currency=KES&minRent=10000&maxRent=100000&minBedrooms=2&sort=PRICE_ASC&limit=20&offset=0
+
+### Guest listing detail
+GET {{baseUrl}}/api/v1/listings/{{listingId}}
+
+### Replace listing copy; published listings are withdrawn until reviewed/re-published
+PUT {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/listings/{{listingId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":{{listingVersion}},"details":{"title":"Updated apartment title","description":"Updated public description.","showExactLocation":false}}
+
+### Withdraw publication; works even when the source inventory is archived
+POST {{baseUrl}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/listings/{{listingId}}/withdraw
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":{{listingVersion}}}

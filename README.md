@@ -4,6 +4,8 @@ Java 24 / Spring Boot 4.1.1 / PostgreSQL. The existing Gradle wrapper is retaine
 
 Private property and rental-unit management is now implemented. See [the property management guide](docs/property-management.md) and `api/property-management.http` for ownership, agency delegation, pricing, availability, version checks, and archival.
 
+Rental listing drafts/publication and guest search are implemented in [the public listings guide](docs/public-listings.md), with examples in `api/public-listings.http`. Guest GET `/api/v1/listings` exposes only explicitly published, currently available offers.
+
 ## Start locally
 
 PostgreSQL must already contain database `zaza` and login `admin`, with permission to create tables and functions in the database's `public` schema. The service does not create or replace database users or databases. Flyway creates and versions the foundation tables on startup; it refuses an existing nonempty schema without migration history rather than automatically baselining it.
@@ -118,4 +120,4 @@ The tests cover password/token storage, invalid credentials, logout, independent
 
 ## Scope of this first foundation slice
 
-This establishes account, organization, access-control, migration, audit, and test foundations plus private property/unit inventory. Flutter still uses Firebase and has not been switched to these APIs. Existing Firebase users are not imported automatically. Email verification/delivery, password recovery, MFA, session listing/revoke-all, fine-grained agent/provider permissions, user-admin management, public listings/search, media, and remaining business workflows are subsequent work. Complete and test email verification before using claimed email addresses for trusted business onboarding.
+This establishes account, organization, access-control, migration, audit, and test foundations, private property/unit inventory, and public rental listings/search. Flutter still uses Firebase and has not been switched to these APIs. Existing Firebase users are not imported automatically. Email verification/delivery, password recovery, MFA, session listing/revoke-all, fine-grained agent/provider permissions, user-admin management, media, and remaining business workflows are subsequent work. Complete and test email verification before using claimed email addresses for trusted business onboarding.

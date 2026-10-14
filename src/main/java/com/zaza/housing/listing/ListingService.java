@@ -1,0 +1,140 @@
+package com.zaza.housing.listing;
+
+import com.zaza.housing.audit.AuditService;
+import com.zaza.housing.auth.AuthenticatedUser;
+import com.zaza.housing.common.ApiException;
+import com.zaza.housing.organization.OrganizationService;
+import com.zaza.housing.property.*;
+import java.time.Clock;
+import java.util.Arrays;
+import java.util.Currency;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import static com.zaza.housing.listing.ListingRequests.*;
+
+@Service
+public class ListingService {
+    private final ListingRepository listings;
+    private final PropertyService properties;
+    private final AuditService audit;
+    private final Clock clock;
+
+    public ListingService(ListingRepository listings, PropertyService properties, AuditService audit, Clock clock) {
+        this.listings = listings; this.properties = properties; this.audit = audit; this.clock = clock;
+    }
+
+    @Transactional
+    public RentalListing create(AuthenticatedUser actor, UUID organization, UUID propertyId, Create request) {
+        Property property = properties.lockForManagement(actor, organization, propertyId);
+        requireOpen(property);
+        PropertyUnit unit = properties.unit(actor, organization, propertyId, request.unitId());
+        if (unit.status() == UnitStatus.ARCHIVED) throw conflict("Restore the unit before creating a listing.");
+        UUID id = listings.create(propertyId, actor.id(), request);
+        RentalListing result = find(propertyId, id);
+        audit.recordSnapshot(actor.id(), organization, "LISTING_CREATED", id, null, result);
+        return result;
+    }
+
+    public RentalListing get(AuthenticatedUser actor, UUID organization, UUID propertyId, UUID id) {
+        properties.get(actor, organization, propertyId);
+        return find(propertyId, id);
+    }
+
+    public List<RentalListing> list(AuthenticatedUser actor, UUID organization, UUID propertyId, int limit, int offset) {
+        properties.get(actor, organization, propertyId);
+        OrganizationService.validatePage(limit, offset);
+        return listings.list(propertyId, limit, offset);
+    }
+
+    @Transactional
+    public RentalListing update(AuthenticatedUser actor, UUID organization, UUID propertyId, UUID id, Update request) {
+        requireOpen(properties.lockForManagement(actor, organization, propertyId));
+        RentalListing previous = find(propertyId, id);
+        checkVersion(previous.version(), request.version());
+        listings.update(propertyId, id, request);
+        return record(actor, organization, previous, "LISTING_UPDATED");
+    }
+
+    @Transactional
+    public RentalListing publish(AuthenticatedUser actor, UUID organization, UUID propertyId, UUID id, Publish request) {
+        Property property = properties.lockForManagement(actor, organization, propertyId);
+        RentalListing previous = find(propertyId, id);
+        PropertyUnit unit = properties.unit(actor, organization, propertyId, previous.unitId());
+        checkVersion(previous.version(), request.version());
+        checkVersion(property.version(), request.propertyVersion());
+        checkVersion(unit.version(), request.unitVersion());
+        if (property.status() != PropertyStatus.ACTIVE || unit.status() != UnitStatus.ACTIVE || unit.availability() != UnitAvailability.AVAILABLE) {
+            throw conflict("Publishing requires an active property and an active, available unit.");
+        }
+        boolean disclose = previous.showExactLocation();
+        PublicListing snapshot = new PublicListing(id, previous.title(), previous.description(), property.type(),
+                property.countryCode(), property.city(), disclose ? property.address() : null,
+                disclose ? property.latitude() : null, disclose ? property.longitude() : null,
+                unit.bedrooms(), unit.bathrooms(), unit.floorAreaSqm(), unit.monthlyRent(), unit.deposit(), unit.currency(), clock.instant());
+        listings.publish(propertyId, id, organization, request, snapshot);
+        return record(actor, organization, previous, "LISTING_PUBLISHED");
+    }
+
+    @Transactional
+    public RentalListing withdraw(AuthenticatedUser actor, UUID organization, UUID propertyId, UUID id, Withdraw request) {
+        // Withdrawing remains allowed for archived inventory, so owners can explicitly end publication.
+        properties.lockForManagement(actor, organization, propertyId);
+        RentalListing previous = find(propertyId, id);
+        checkVersion(previous.version(), request.version());
+        listings.withdraw(propertyId, id, request.version());
+        return record(actor, organization, previous, "LISTING_WITHDRAWN");
+    }
+
+    public PublicListing publicListing(UUID id) {
+        return listings.publicListing(id).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Listing not found."));
+    }
+
+    public SearchResult search(Search query) {
+        int limit = query.limit() == null ? 50 : query.limit();
+        int offset = query.offset() == null ? 0 : query.offset();
+        if (query.q() != null && query.q().trim().length() < 2) throw badRequest("Search text must contain at least two characters.");
+        if (query.city() != null && query.city().isBlank()) throw badRequest("City cannot be blank.");
+        if (query.countryCode() != null && !Arrays.asList(Locale.getISOCountries()).contains(query.countryCode().toUpperCase(Locale.ROOT))) {
+            throw badRequest("Use a valid ISO country code.");
+        }
+        if (query.currency() != null) {
+            try { Currency.getInstance(query.currency().toUpperCase(Locale.ROOT)); }
+            catch (IllegalArgumentException error) { throw badRequest("Use a valid ISO currency code."); }
+        }
+        boolean prices = query.minRent() != null || query.maxRent() != null || query.sort() == ListingSort.PRICE_ASC || query.sort() == ListingSort.PRICE_DESC;
+        if (prices && query.currency() == null) throw badRequest("Specify currency when filtering or sorting by price.");
+        if (query.minRent() != null && query.maxRent() != null && query.minRent().compareTo(query.maxRent()) > 0) {
+            throw badRequest("Minimum rent cannot exceed maximum rent.");
+        }
+        if (query.minBedrooms() != null && query.maxBedrooms() != null && query.minBedrooms() > query.maxBedrooms()) {
+            throw badRequest("Minimum bedrooms cannot exceed maximum bedrooms.");
+        }
+        List<PublicListing> rows = listings.search(query, limit + 1, offset);
+        return new SearchResult(List.copyOf(rows.subList(0, Math.min(limit, rows.size()))), limit, offset, rows.size() > limit);
+    }
+
+    public record SearchResult(List<PublicListing> items, int limit, int offset, boolean hasMore) { }
+
+    private RentalListing find(UUID propertyId, UUID id) {
+        return listings.find(propertyId, id).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Listing not found."));
+    }
+
+    private RentalListing record(AuthenticatedUser actor, UUID organization, RentalListing previous, String action) {
+        RentalListing result = find(previous.propertyId(), previous.id());
+        audit.recordSnapshot(actor.id(), organization, action, previous.id(), previous, result);
+        return result;
+    }
+
+    private static void checkVersion(long actual, long expected) {
+        if (actual != expected) throw conflict("The listing or source inventory has changed. Reload and review it before publishing or saving.");
+    }
+    private static void requireOpen(Property property) {
+        if (property.status() == PropertyStatus.ARCHIVED) throw conflict("Restore the property before editing listings.");
+    }
+    private static ApiException conflict(String message) { return new ApiException(HttpStatus.CONFLICT, message); }
+    private static ApiException badRequest(String message) { return new ApiException(HttpStatus.BAD_REQUEST, message); }
+}
