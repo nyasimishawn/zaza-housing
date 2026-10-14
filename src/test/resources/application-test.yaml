@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: ${ZAZA_TEST_DB_URL:${ZAZA_DB_URL:jdbc:postgresql://127.0.0.1:5432/zaza}}
+    username: ${ZAZA_TEST_DB_USER:${ZAZA_DB_USER:admin}}
+    password: ${ZAZA_TEST_DB_PASSWORD:${ZAZA_DB_PASSWORD:}}
+    hikari:
+      schema: zaza_foundation_test
+  flyway:
+    default-schema: zaza_foundation_test
+    schemas: zaza_foundation_test
+zaza:
+  auth:
+    requests-per-minute: 10000

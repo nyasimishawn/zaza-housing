@@ -1,0 +1,39 @@
+spring:
+  config:
+    import: "optional:file:.env[.properties][encoding=utf-8]"
+  application:
+    name: zaza
+  datasource:
+    url: ${ZAZA_DB_URL:jdbc:postgresql://localhost:5432/zaza}
+    username: ${ZAZA_DB_USER:admin}
+    password: ${ZAZA_DB_PASSWORD:Admin}
+    hikari:
+      schema: public
+      maximum-pool-size: 10
+      connection-init-sql: SET TIME ZONE 'UTC'
+  flyway:
+    default-schema: public
+    schemas: public
+    enabled: true
+    clean-disabled: true
+    validate-on-migrate: true
+server:
+  address: ${ZAZA_BIND_ADDRESS:127.0.0.1}
+  port: ${ZAZA_PORT:8080}
+  error:
+    include-message: never
+    include-stacktrace: never
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+zaza:
+  auth:
+    session-duration: ${ZAZA_SESSION_DURATION:PT1H}
+    requests-per-minute: ${ZAZA_AUTH_REQUESTS_PER_MINUTE:20}
+  cors:
+    allowed-origins: ${ZAZA_CORS_ORIGINS:http://localhost:3000,http://localhost:5173}

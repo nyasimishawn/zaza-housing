@@ -1,0 +1,43 @@
+@baseUrl = http://localhost:8080
+@email = you@example.com
+@password = replace-with-your-own-long-password
+@accessToken = replace-with-token-from-login
+@organizationId = replace-with-id-from-create-organization
+
+### Database-backed health
+GET {{baseUrl}}/actuator/health
+
+### Register a regular account
+POST {{baseUrl}}/api/v1/auth/register
+Content-Type: application/json
+
+{"email":"{{email}}","password":"{{password}}","displayName":"Your name"}
+
+### Login; copy accessToken into the variable above
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{"email":"{{email}}","password":"{{password}}"}
+
+### Read your account
+GET {{baseUrl}}/api/v1/me
+Authorization: Bearer {{accessToken}}
+
+### Create your organization; copy id into organizationId above
+POST {{baseUrl}}/api/v1/organizations
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"name":"Your agency","type":"AGENCY"}
+
+### List only organizations you belong to
+GET {{baseUrl}}/api/v1/organizations?limit=50&offset=0
+Authorization: Bearer {{accessToken}}
+
+### List members as an owner/administrator
+GET {{baseUrl}}/api/v1/organizations/{{organizationId}}/members
+Authorization: Bearer {{accessToken}}
+
+### Revoke the current session
+POST {{baseUrl}}/api/v1/auth/logout
+Authorization: Bearer {{accessToken}}
