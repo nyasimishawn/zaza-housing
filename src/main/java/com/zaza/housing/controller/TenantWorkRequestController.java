@@ -4,6 +4,8 @@ import com.zaza.housing.dto.AssignWorkRequest;
 import com.zaza.housing.dto.ConsentWorkRequest;
 import com.zaza.housing.dto.CreateServiceReviewRequest;
 import com.zaza.housing.dto.CreateWorkRequest;
+import com.zaza.housing.dto.OpenServiceAccountRequest;
+import com.zaza.housing.dto.ServiceAccountResponse;
 import com.zaza.housing.dto.ServiceQuoteResponse;
 import com.zaza.housing.dto.WorkCommandRequest;
 import com.zaza.housing.dto.WorkDashboardResponse;
@@ -19,6 +21,7 @@ import com.zaza.housing.enums.WorkPriority;
 import com.zaza.housing.enums.WorkStatus;
 import com.zaza.housing.enums.WorkVisibility;
 import com.zaza.housing.model.AuthenticatedUser;
+import com.zaza.housing.service.ServicePaymentService;
 import com.zaza.housing.service.WorkCompletionService;
 import com.zaza.housing.service.WorkEvidenceService;
 import com.zaza.housing.service.WorkReadService;
@@ -44,6 +47,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/v1/me/work-requests")
 public class TenantWorkRequestController {
+  private final ServicePaymentService servicePayments;
   private final WorkReadService reads;
   private final WorkRequestService requests;
   private final WorkVisitService visits;
@@ -55,11 +59,13 @@ public class TenantWorkRequestController {
       WorkRequestService requests,
       WorkVisitService visits,
       WorkCompletionService completion,
-      WorkEvidenceService evidence) {
+      WorkEvidenceService evidence,
+      ServicePaymentService servicePayments) {
     this.reads = reads;
     this.requests = requests;
     this.visits = visits;
     this.completion = completion;
+    this.servicePayments = servicePayments;
     this.evidence = evidence;
   }
 
@@ -254,5 +260,13 @@ public class TenantWorkRequestController {
       @PathVariable UUID id,
       @Valid @RequestBody CreateServiceReviewRequest request) {
     return completion.review(actor, id, request);
+  }
+
+  @PostMapping("/{id}/payments")
+  public ServiceAccountResponse openServicePayments(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID id,
+      @Valid @RequestBody OpenServiceAccountRequest request) {
+    return servicePayments.open(actor, WorkParty.CUSTOMER, null, null, id, request);
   }
 }

@@ -1,0 +1,140 @@
+@base = http://127.0.0.1:8080
+@payerToken = REPLACE_WITH_PAYER_BEARER_TOKEN
+@providerToken = REPLACE_WITH_PROVIDER_OWNER_BEARER_TOKEN
+@approverToken = REPLACE_WITH_FIRST_INDEPENDENT_PLATFORM_OPERATOR_TOKEN
+@verifierToken = REPLACE_WITH_SECOND_INDEPENDENT_PLATFORM_OPERATOR_TOKEN
+@operatorPassword = REPLACE_LOCALLY_DO_NOT_COMMIT_A_REAL_PASSWORD
+@ownerOrg = REPLACE_UUID
+@providerOrg = REPLACE_UUID
+@propertyId = REPLACE_UUID
+@workId = REPLACE_UUID
+@accountId = REPLACE_UUID
+@claimId = REPLACE_UUID
+@receiptId = REPLACE_UUID
+@destinationId = REPLACE_UUID
+@payoutId = REPLACE_UUID
+@workVersion = 0
+@version = 1
+@account = {{base}}/api/v1/service-payments/{{accountId}}
+@admin = {{base}}/api/v1/admin/service-finance/accounts/{{accountId}}
+
+### Open owner-funded maintenance account after accepting the current quote.
+# For a personal booking use POST /api/v1/me/work-requests/{{workId}}/payments with its tenant token.
+POST {{base}}/api/v1/organizations/{{ownerOrg}}/properties/{{propertyId}}/work-requests/{{workId}}/payments
+Authorization: Bearer {{payerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","workVersion":{{workVersion}}}
+
+### Current service statement: reload its version before each different command.
+GET {{account}}
+Authorization: Bearer {{payerToken}}
+
+### Payer reports an external payment. Reporting is not receipt verification.
+POST {{account}}/claims
+Authorization: Bearer {{payerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","version":{{version}},"amount":"1500.00","channel":"BANK_TRANSFER","reference":"REPLACE_WITH_CHECKED_EXTERNAL_REFERENCE","receivedOn":"2026-10-15","reason":"Transfer reported for the agreed service quote."}
+
+### Review incoming claims (payer/operator only).
+GET {{account}}/claims
+Authorization: Bearer {{approverToken}}
+
+### Operator verifies the receiving statement independently before this request.
+# Use /reject with the same shape when the claim cannot be verified.
+POST {{admin}}/claims/{{claimId}}/verify
+Authorization: Bearer {{approverToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","version":{{version}},"password":"{{operatorPassword}}","reason":"Confirmed matching funds on the authorized receiving statement."}
+
+### Alternative: record a direct independently verified receipt, not an additional copy of the claim payment.
+POST {{admin}}/receipts
+Authorization: Bearer {{approverToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","version":{{version}},"amount":"1500.00","channel":"BANK_TRANSFER","reference":"REPLACE_WITH_ANOTHER_EXTERNAL_REFERENCE","receivedOn":"2026-10-15","password":"{{operatorPassword}}","reason":"Matched an actual external collection on the receiving statement."}
+
+### Provider registers an already provisioned external opaque beneficiary identifier.
+POST {{base}}/api/v1/organizations/{{providerOrg}}/provider-payouts/destinations
+Authorization: Bearer {{providerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","channel":"BANK_TRANSFER","beneficiaryToken":"beneficiary_REPLACE_WITH_EXTERNAL_OPAQUE_ID","maskedLabel":"Business Bank ****1234","currency":"KES"}
+
+### Independent operator records completed external beneficiary ownership checks.
+# Use REVOKED to suspend this destination immediately; do not overwrite it.
+POST {{base}}/api/v1/admin/service-finance/destinations/{{destinationId}}/review
+Authorization: Bearer {{approverToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","status":"VERIFIED","password":"{{operatorPassword}}","reason":"Verified the external beneficiary identity, ownership and settlement currency."}
+
+### Provider requests payout only after completion, cleared funding and strictly more than 14 days.
+POST {{account}}/payouts
+Authorization: Bearer {{providerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","version":{{version}},"destinationId":"{{destinationId}}","reason":"Reviewed the gross quote, frozen fee and net provider entitlement."}
+
+### Operator payout queue.
+GET {{base}}/api/v1/admin/service-finance/payouts?status=REQUESTED&limit=50&offset=0
+Authorization: Bearer {{approverToken}}
+
+### Operator approves the frozen instruction; this does not initiate a transfer.
+POST {{admin}}/payouts/{{payoutId}}/approve
+Authorization: Bearer {{approverToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","version":{{version}},"password":"{{operatorPassword}}","reason":"Reviewed completed service, cleared funding and verified beneficiary."}
+
+### Second independent operator records a verified completed external payout.
+# amount must equal providerEntitlement from the statement (default zero fee: 1500.00).
+# Date must be on/after release eligibility and funding and not in the future.
+POST {{admin}}/payouts/{{payoutId}}/paid
+Authorization: Bearer {{verifierToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","version":{{version}},"amount":"1500.00","channel":"BANK_TRANSFER","reference":"REPLACE_WITH_VERIFIED_PAYOUT_REFERENCE","receivedOn":"2026-10-30","password":"{{operatorPassword}}","reason":"Verified the completed external transfer to the approved beneficiary."}
+
+### Payout failure/cancellation after approval is allowed only after confirming no transfer succeeded.
+# /reject applies to REQUESTED; /cancel or /fail applies to APPROVED.
+POST {{admin}}/payouts/{{payoutId}}/fail
+Authorization: Bearer {{approverToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","version":{{version}},"password":"{{operatorPassword}}","reason":"External reconciliation confirmed that no funds were transferred."}
+
+### Record an externally completed refund; cannot spend reserved/paid principal or earned fee.
+POST {{admin}}/receipts/{{receiptId}}/refunds
+Authorization: Bearer {{verifierToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","version":{{version}},"amount":"100.00","channel":"BANK_TRANSFER","reference":"REPLACE_WITH_VERIFIED_REFUND_REFERENCE","receivedOn":"2026-10-15","password":"{{operatorPassword}}","reason":"Verified the completed refund against this source receipt."}
+
+### Void an unused receipt correction. A void does not send a refund.
+POST {{admin}}/receipts/{{receiptId}}/void
+Authorization: Bearer {{verifierToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","version":{{version}},"password":"{{operatorPassword}}","reason":"Correcting a mistakenly entered receipt after external reconciliation."}
+
+### Close only after reports are resolved, all net funds refunded and payouts withdrawn.
+POST {{account}}/close
+Authorization: Bearer {{payerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","version":{{version}},"reason":"Financial records reconciled before ending this assignment."}
+
+### Provider currency-separated financial dashboard.
+GET {{base}}/api/v1/organizations/{{providerOrg}}/provider-payouts/summary
+Authorization: Bearer {{providerToken}}
+
+### Provider payout request history.
+GET {{base}}/api/v1/organizations/{{providerOrg}}/provider-payouts/requests?limit=50
+Authorization: Bearer {{providerToken}}
+
+### Safe service financial history.
+GET {{account}}/history?limit=50
+Authorization: Bearer {{payerToken}}

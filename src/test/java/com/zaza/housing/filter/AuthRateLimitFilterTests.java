@@ -1,5 +1,7 @@
 package com.zaza.housing.filter;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -8,7 +10,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
-import static org.assertj.core.api.Assertions.assertThat;
 
 class AuthRateLimitFilterTests {
     @Test
@@ -33,8 +34,12 @@ class AuthRateLimitFilterTests {
 
     @Test
     void passwordConfirmationEndpointsShareTheAuthenticationRateLimit() throws Exception {
-        for(String path : java.util.List.of("/api/v1/me/leases/a/sign", "/api/v1/organizations/o/properties/p/leases/a/sign",
-                "/api/v1/me/leases/a/terminations", "/api/v1/organizations/o/properties/p/leases/a/terminations/t/accept")) {
+    for (String path :
+        java.util.List.of(
+            "/api/v1/me/leases/a/sign",
+            "/api/v1/organizations/o/properties/p/leases/a/sign",
+            "/api/v1/me/leases/a/terminations",
+            "/api/v1/organizations/o/properties/p/leases/a/terminations/t/accept")) {
             var filter=new AuthRateLimitFilter(Clock.systemUTC(),1);
             assertThat(attempt(filter,path)).isEqualTo(204);
             assertThat(attempt(filter,path)).isEqualTo(429);
@@ -51,12 +56,29 @@ class AuthRateLimitFilterTests {
     @Test
     void manualPaymentVerificationAndRefundsSharePasswordAttemptLimits() throws Exception {
         String base="/api/v1/organizations/o/properties/p/leases/l/billing/";
-        for(String action:java.util.List.of("payments","payments/r/void","payments/r/refunds","claims/c/verify","claims/c/reject","deposit/refunds")) {
+    for (String action :
+        java.util.List.of(
+            "payments",
+            "payments/r/void",
+            "payments/r/refunds",
+            "claims/c/verify",
+            "claims/c/reject",
+            "deposit/refunds")) {
             var filter=new AuthRateLimitFilter(Clock.systemUTC(),1);
             assertThat(attempt(filter,base+action)).isEqualTo(204);
             assertThat(attempt(filter,base+action)).isEqualTo(429);
         }
     }
+
+  @Test
+  void serviceFinancePasswordConfirmationsShareTheAuthenticationQuota() throws Exception {
+    var filter = new AuthRateLimitFilter(Clock.systemUTC(), 2);
+    assertThat(attempt(filter, "/api/v1/admin/service-finance/accounts/a/receipts")).isEqualTo(204);
+    assertThat(attempt(filter, "/api/v1/admin/service-finance/destinations/d/review"))
+        .isEqualTo(204);
+    assertThat(attempt(filter, "/api/v1/admin/service-finance/accounts/a/payouts/p/paid"))
+        .isEqualTo(429);
+  }
 
     private int attempt(AuthRateLimitFilter filter,String path) throws Exception {
         var request = new MockHttpServletRequest("POST", path);

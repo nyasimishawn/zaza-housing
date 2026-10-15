@@ -16,7 +16,9 @@ import com.zaza.housing.model.RentalLease;
 import com.zaza.housing.model.WorkRequest;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -28,6 +30,21 @@ import tools.jackson.databind.ObjectMapper;
 
 @Repository
 public class WorkRequestRepository {
+
+  public Map<UUID, WorkRequest> findAll(List<UUID> ids) {
+    var result = new HashMap<UUID, WorkRequest>();
+    if (ids.isEmpty()) return result;
+    var rows =
+        jdbc.query(
+            "SELECT * FROM work_requests WHERE id IN ("
+                + String.join(",", Collections.nCopies(ids.size(), "?"))
+                + ")",
+            WORK,
+            ids.toArray());
+    rows.forEach(w -> result.put(w.id(), w));
+    return result;
+  }
+
   private final JdbcTemplate jdbc;
   private final ObjectMapper json;
 

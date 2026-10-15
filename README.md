@@ -110,7 +110,7 @@ Membership roles: `OWNER`, `ADMIN`, `MEMBER`. Owners can manage administrators a
 
 ## Authorization and data boundaries
 
-Database login `admin` does **not** create an application administrator. New accounts always receive platform role `USER`. Platform administrators can list basic account summaries; they do not automatically receive private organization access. Organization access is determined from the authenticated user and current database memberships, never from a caller-supplied organization header. Outsiders receive 404 for organization-specific resources. Membership revocation and account disabling take effect on the next request.
+Database login `admin` does **not** create an application administrator. New accounts always receive platform role `USER`. Platform administrators can list basic account summaries and explicitly operate the service-finance ledger described below; private organization/property access continues to require membership. Organization access is determined from the authenticated user and current database memberships, never from a caller-supplied organization header. Outsiders receive 404 for organization-specific resources. Membership revocation and account disabling take effect on the next request.
 
 Foundation tables: `app_users`, `auth_sessions`, `organizations`, `organization_memberships`, `audit_events`, plus Flyway history. SQL statements are parameterized; organization access is enforced in the backend. PostgreSQL row-level security is not enabled in this initial slice. Future organization-owned domain tables must follow the same authorization checks and require corresponding isolation tests.
 
@@ -167,4 +167,9 @@ Private images and approved public galleries are documented in `docs/property-im
 
 ## Maintenance and service requests
 
-`docs/maintenance-service-requests.md` covers lease-linked maintenance, private tenant bookings, service-provider profiles/offers and discovery, triage/assignment, quotes, occupant visit consent, scheduling, private photos/notes, completion review, rework/disputes and public customer reviews. `api/maintenance-service-requests.http` has examples. V10 extends the existing notification and lease-checkout layers. Providers are labeled NOT_VERIFIED; service collection/payouts and Flutter screens are not connected.
+`docs/maintenance-service-requests.md` covers lease-linked maintenance, private tenant bookings, service-provider profiles/offers and discovery, triage/assignment, quotes, occupant visit consent, scheduling, private photos/notes, completion review, rework/disputes and public customer reviews. `api/maintenance-service-requests.http` has examples. V10 extends the existing notification and lease-checkout layers. Providers are labeled NOT_VERIFIED. Service financial workflows are documented below; Flutter screens remain separate work.
+
+
+## Service payments and provider payouts
+
+`docs/service-payments-provider-payouts.md` covers quote-bound service accounts, payer payment reports, independent platform verification, refunds/voids, frozen commissions, provider beneficiary verification, completion/dispute holds, reserved payout requests and two-operator external transfer confirmation. `api/service-payments-provider-payouts.http` contains examples. V11/V12 add protected financial evidence and targeted inbox notifications. Collections and transfers are recorded only after independent external checks; live gateway adapters and Flutter screens remain separate work. `ZAZA_SERVICE_COMMISSION_BPS` defaults to zero and applies only when opening a new service account.
