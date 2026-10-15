@@ -18,6 +18,7 @@ import com.zaza.housing.model.AuthenticatedUser;
 import com.zaza.housing.model.Organization;
 import com.zaza.housing.model.Property;
 import com.zaza.housing.model.PropertyUnit;
+import com.zaza.housing.repository.LeaseRepository;
 import com.zaza.housing.repository.OrganizationRepository;
 import com.zaza.housing.repository.PropertyRepository;
 import com.zaza.housing.repository.RentalApplicationRepository;
@@ -41,13 +42,14 @@ public class PropertyService {
     private final OrganizationService organizations;
     private final AuditService audit;
     private final RentalApplicationRepository applications;
+    private final LeaseRepository leases;
 
     public PropertyService(PropertyRepository properties, OrganizationRepository memberships,
-            OrganizationService organizations, AuditService audit, RentalApplicationRepository applications) {
+            OrganizationService organizations, AuditService audit, RentalApplicationRepository applications, LeaseRepository leases) {
         this.properties = properties;
         this.memberships = memberships;
         this.organizations = organizations;
-        this.audit = audit; this.applications = applications;
+        this.audit = audit; this.applications = applications; this.leases=leases;
     }
 
     @Transactional
@@ -154,8 +156,8 @@ public class PropertyService {
     public PropertyUnit updateUnit(AuthenticatedUser actor, UUID organizationId, UUID propertyId, UUID id, UpdateUnitRequest request) {
         requireOpen(access(actor, organizationId, propertyId, true));
         PropertyUnit previous = findUnit(propertyId, id);
-        if (applications.reserved(propertyId, id)) {
-            throw new ApiException(HttpStatus.CONFLICT, "Cancel or withdraw the approved application before changing this reserved unit.");
+        if (applications.reserved(propertyId, id) || leases.holdsUnit(propertyId,id)) {
+            throw new ApiException(HttpStatus.CONFLICT, "Resolve the application reservation or complete lease checkout before changing this unit.");
         }
         if (previous.status() == UnitStatus.ARCHIVED) {
             throw new ApiException(HttpStatus.CONFLICT, "Restore the unit before editing it.");
@@ -170,8 +172,8 @@ public class PropertyService {
     public PropertyUnit changeUnitStatus(AuthenticatedUser actor, UUID organizationId, UUID propertyId, UUID id, ChangeUnitStatusRequest request) {
         requireOpen(access(actor, organizationId, propertyId, true));
         PropertyUnit previous = findUnit(propertyId, id);
-        if (applications.reserved(propertyId, id)) {
-            throw new ApiException(HttpStatus.CONFLICT, "Cancel or withdraw the approved application before changing this reserved unit.");
+        if (applications.reserved(propertyId, id) || leases.holdsUnit(propertyId,id)) {
+            throw new ApiException(HttpStatus.CONFLICT, "Resolve the application reservation or complete lease checkout before changing this unit.");
         }
         checkVersion(previous.version(), request.version());
         properties.changeUnitStatus(propertyId, id, request.version(), request.status());

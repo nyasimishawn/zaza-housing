@@ -1,0 +1,187 @@
+# Replace IDs/tokens and update billingVersion from GET after every different command.
+# Keep the same requestId/payload when retrying one command; {{$uuid}} creates a fresh ID on each send.
+# Receipt/refund commands record externally verified money; they do not initiate transfers.
+@host = http://localhost:8080
+@ownerToken = replace-with-owner-token
+@tenantToken = replace-with-tenant-token
+@organizationId = replace-organization-uuid
+@propertyId = replace-property-uuid
+@leaseId = replace-lease-uuid
+@invoiceId = replace-invoice-uuid
+@paymentId = replace-payment-uuid
+@claimId = replace-claim-uuid
+@allocationId = replace-allocation-uuid
+@settlementId = replace-settlement-uuid
+@leaseVersion = 3
+@billingVersion = 0
+@ownerPassword = replace-locally-do-not-commit
+@receivedOn = 2026-10-15
+@manager = {{host}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/leases/{{leaseId}}/billing
+@tenant = {{host}}/api/v1/me/leases/{{leaseId}}/billing
+
+### Preview calendar rent before selecting the policy
+GET {{manager}}/preview
+Authorization: Bearer {{ownerToken}}
+
+### Open once for an executed lease (lease version, not billing version)
+POST {{manager}}
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","leaseVersion":{{leaseVersion}},"policy":"CALENDAR_ACTUAL_DAYS"}
+
+### Refresh current account version and balances
+GET {{manager}}
+Authorization: Bearer {{ownerToken}}
+
+### Tenant invoices including future rent; paginate all histories
+GET {{tenant}}/invoices?limit=50&offset=0
+Authorization: Bearer {{tenantToken}}
+
+### Tenant reports a bank transfer; no funds are created
+POST {{tenant}}/claims
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{billingVersion}},"amount":"25000.00","channel":"BANK_TRANSFER","reference":"BANK-RECEIPT-0001","receivedOn":"{{receivedOn}}","reason":"Rent transfer for independent verification."}
+
+### Owner reads payment reports and copies a claim ID
+GET {{manager}}/claims
+Authorization: Bearer {{ownerToken}}
+
+### Owner independently verifies statement, then confirms with password
+POST {{manager}}/claims/{{claimId}}/verify
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{billingVersion}},"password":"{{ownerPassword}}","reason":"Matched the transfer to the owner's bank statement."}
+
+### Alternative: reject an unmatched report
+POST {{manager}}/claims/{{claimId}}/reject
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{billingVersion}},"password":"{{ownerPassword}}","reason":"This reference and amount could not be verified."}
+
+### Alternative: record independently checked external receipt directly
+POST {{manager}}/payments
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{billingVersion}},"amount":"50000.00","channel":"MOBILE_MONEY","reference":"EXTERNAL-DEPOSIT-0002","receivedOn":"{{receivedOn}}","password":"{{ownerPassword}}","reason":"Deposit matched to the external collection statement."}
+
+### Copy a verified payment ID; available funds start unallocated
+GET {{manager}}/payments
+Authorization: Bearer {{ownerToken}}
+
+### Allocate to a rent or deposit invoice from this same lease
+POST {{manager}}/payments/{{paymentId}}/allocations
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{billingVersion}},"invoiceId":"{{invoiceId}}","amount":"25000.00"}
+
+### Tenant's receipt evidence and allocation/refund history
+GET {{tenant}}/payments/{{paymentId}}/receipt
+Authorization: Bearer {{tenantToken}}
+
+### Download private UTF-8 receipt
+GET {{tenant}}/payments/{{paymentId}}/receipt/document
+Authorization: Bearer {{tenantToken}}
+
+### Read allocations before a correction
+GET {{manager}}/allocations
+Authorization: Bearer {{ownerToken}}
+
+### Reverse an incorrect allocation; retain original evidence
+POST {{manager}}/allocations/{{allocationId}}/reverse
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{billingVersion}},"reason":"Receipt was allocated to the wrong invoice."}
+
+### Void only unused/unrefunded receipts; this is not a refund
+POST {{manager}}/payments/{{paymentId}}/void
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{billingVersion}},"password":"{{ownerPassword}}","reason":"Incorrect external receipt entry, independently investigated."}
+
+### Record an ACTUAL completed refund of unallocated money
+POST {{manager}}/payments/{{paymentId}}/refunds
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{billingVersion}},"amount":"1000.00","channel":"BANK_TRANSFER","reference":"EXTERNAL-REFUND-0003","receivedOn":"{{receivedOn}}","password":"{{ownerPassword}}","reason":"Unallocated overpayment returned and verified externally."}
+
+### Inspection or other agreed charge before finalization
+POST {{manager}}/charges
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{billingVersion}},"amount":"1500.00","dueDate":"{{receivedOn}}","reason":"Documented inspection charge supplied by the business."}
+
+### Credit an unpaid rent/charge amount; reverse paid allocations first
+POST {{manager}}/invoices/{{invoiceId}}/credits
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{billingVersion}},"amount":"500.00","reason":"Agreed correction to the outstanding charge."}
+
+### After lease /complete: apply end-date credits and freeze deposit collection
+POST {{manager}}/finalize
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{billingVersion}},"reason":"Move-out charges reviewed; finalize rent through the agreed end."}
+
+### Propose explained deposit deductions after inspection/finalization
+POST {{manager}}/deposit/proposals
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{billingVersion}},"deduction":"5000.00","reason":"Inspection: damaged fitting replacement 3000; agreed cleaning 2000."}
+
+### Tenant reads held amount, proposed deduction, and refund due
+GET {{tenant}}/settlements
+Authorization: Bearer {{tenantToken}}
+
+### Tenant explicitly ACCEPTs or DISPUTEs the current proposal
+POST {{tenant}}/deposit/proposals/{{settlementId}}/decision
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{billingVersion}},"decision":"ACCEPT","reason":"I reviewed the inspection explanation and accept this reconciliation."}
+
+### Owner may withdraw a PENDING proposal only
+POST {{manager}}/deposit/proposals/{{settlementId}}/cancel
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{billingVersion}},"reason":"Withdrawn pending proposal for correction and fresh review."}
+
+### After acceptance and ACTUAL transfer, record deposit refund
+POST {{manager}}/deposit/refunds
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{billingVersion}},"amount":"45000.00","channel":"BANK_TRANSFER","reference":"DEPOSIT-REFUND-0004","receivedOn":"{{receivedOn}}","password":"{{ownerPassword}}","reason":"Accepted refundable deposit transferred and independently checked."}
+
+### Immutable financial activity
+GET {{tenant}}/history?limit=50&offset=0
+Authorization: Bearer {{tenantToken}}
+
+### Recorded refunds
+GET {{tenant}}/refunds
+Authorization: Bearer {{tenantToken}}
+
+### Tenant dashboard: one row per currency
+GET {{host}}/api/v1/me/leases/billing-summary
+Authorization: Bearer {{tenantToken}}
+
+### Property dashboard: current authorized management, one row per currency
+GET {{host}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/leases/billing-summary
+Authorization: Bearer {{ownerToken}}
+
+# Check account.checkoutReady before /leases/{id}/release-unit.
+# That existing endpoint also needs the CURRENT LEASE version and vacancy confirmation.

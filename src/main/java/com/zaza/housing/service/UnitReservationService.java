@@ -3,6 +3,7 @@ package com.zaza.housing.service;
 import com.zaza.housing.exception.ApiException;
 import com.zaza.housing.model.PropertyUnit;
 import com.zaza.housing.model.RentalApplication;
+import com.zaza.housing.repository.LeaseRepository;
 import com.zaza.housing.repository.PropertyRepository;
 import com.zaza.housing.repository.RentalApplicationRepository;
 import java.util.UUID;
@@ -16,8 +17,9 @@ public class UnitReservationService {
     private final RentalApplicationRepository applications;
     private final PropertyRepository properties;
     private final AuditService audit;
-    public UnitReservationService(RentalApplicationRepository applications, PropertyRepository properties, AuditService audit) {
-        this.applications = applications; this.properties = properties; this.audit = audit;
+    private final LeaseRepository leases;
+    public UnitReservationService(RentalApplicationRepository applications, PropertyRepository properties, AuditService audit, LeaseRepository leases) {
+        this.applications = applications; this.properties = properties; this.audit = audit; this.leases=leases;
     }
     // The application service authorizes the actor and holds the property's lock before entering here.
     @Transactional(propagation = Propagation.MANDATORY)
@@ -28,6 +30,7 @@ public class UnitReservationService {
     }
     @Transactional(propagation = Propagation.MANDATORY)
     public void release(UUID actor, UUID organization, RentalApplication application) {
+        if(leases.holdsApplication(application.id())) throw new ApiException(HttpStatus.CONFLICT,"Resolve the lease before releasing this application's reservation.");
         PropertyUnit previous = unit(application);
         applications.release(application);
         audit.recordSnapshot(actor, organization, "UNIT_APPLICATION_RESERVATION_RELEASED", previous.id(), previous, unit(application));

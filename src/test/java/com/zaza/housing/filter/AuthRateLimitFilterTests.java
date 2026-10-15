@@ -28,8 +28,39 @@ class AuthRateLimitFilterTests {
     }
 
     private int attempt(AuthRateLimitFilter filter) throws Exception {
-        var request = new MockHttpServletRequest("POST", "/api/v1/auth/login");
-        request.setServletPath("/api/v1/auth/login");
+        return attempt(filter,"/api/v1/auth/login");
+    }
+
+    @Test
+    void passwordConfirmationEndpointsShareTheAuthenticationRateLimit() throws Exception {
+        for(String path : java.util.List.of("/api/v1/me/leases/a/sign", "/api/v1/organizations/o/properties/p/leases/a/sign",
+                "/api/v1/me/leases/a/terminations", "/api/v1/organizations/o/properties/p/leases/a/terminations/t/accept")) {
+            var filter=new AuthRateLimitFilter(Clock.systemUTC(),1);
+            assertThat(attempt(filter,path)).isEqualTo(204);
+            assertThat(attempt(filter,path)).isEqualTo(429);
+        }
+    }
+
+    @Test
+    void documentPreviewsDoNotConsumePasswordAttemptQuota() throws Exception {
+        var filter=new AuthRateLimitFilter(Clock.systemUTC(),1);
+        assertThat(attempt(filter,"/api/v1/me/leases/a/terminations/preview")).isEqualTo(204);
+        assertThat(attempt(filter,"/api/v1/me/leases/a/terminations/preview")).isEqualTo(204);
+    }
+
+    @Test
+    void manualPaymentVerificationAndRefundsSharePasswordAttemptLimits() throws Exception {
+        String base="/api/v1/organizations/o/properties/p/leases/l/billing/";
+        for(String action:java.util.List.of("payments","payments/r/void","payments/r/refunds","claims/c/verify","claims/c/reject","deposit/refunds")) {
+            var filter=new AuthRateLimitFilter(Clock.systemUTC(),1);
+            assertThat(attempt(filter,base+action)).isEqualTo(204);
+            assertThat(attempt(filter,base+action)).isEqualTo(429);
+        }
+    }
+
+    private int attempt(AuthRateLimitFilter filter,String path) throws Exception {
+        var request = new MockHttpServletRequest("POST", path);
+        request.setServletPath(path);
         request.setRemoteAddr("127.0.0.1");
         var response = new MockHttpServletResponse();
         filter.doFilter(request, response, (req, res) -> ((jakarta.servlet.http.HttpServletResponse) res).setStatus(204));

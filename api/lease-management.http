@@ -1,0 +1,178 @@
+@baseUrl = http://127.0.0.1:8080
+@ownerToken = replace-with-owner-admin-token
+@tenantToken = replace-with-tenant-token
+@ownerOrganizationId = replace-with-owning-organization-id
+@propertyId = replace-with-property-id
+@applicationId = replace-with-approved-application-id
+@applicationVersion = 3
+@leaseId = replace-with-lease-id
+@leaseVersion = 0
+@revisionId = replace-with-current-revision-id
+@documentHash = replace-with-current-revision-sha256
+@terminationId = replace-with-termination-request-id
+@proposalHash = replace-with-termination-proposal-sha256
+@ownerDisplayName = Your account display name
+@tenantLegalName = Your name in the agreement
+@startDate = 2026-10-15
+@endDate = 2027-10-14
+@proposedEndDate = 2026-10-15
+
+# Set ownerPassword and tenantPassword in the HTTP client's PRIVATE environment.
+# These are application login passwords, not the PostgreSQL password.
+# Update dates and versions before each request. Start today to try activation locally.
+
+### Create a private draft from a currently APPROVED application
+POST {{baseUrl}}/api/v1/organizations/{{ownerOrganizationId}}/properties/{{propertyId}}/leases
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"applicationId":"{{applicationId}}","applicationVersion":{{applicationVersion}},"terms":{"title":"Residential agreement","startDate":"{{startDate}}","endDate":"{{endDate}}","monthlyRent":"25000.00","deposit":"50000.00","currency":"KES","rentDueDay":5,"agreementText":"Replace this with your negotiated agreement text before sending."}}
+
+### Management detail; refresh leaseVersion, revisionId, and documentHash from this response
+GET {{baseUrl}}/api/v1/organizations/{{ownerOrganizationId}}/properties/{{propertyId}}/leases/{{leaseId}}
+Authorization: Bearer {{ownerToken}}
+
+### Draft revision; only DRAFT is editable, and this appends a new immutable revision
+PUT {{baseUrl}}/api/v1/organizations/{{ownerOrganizationId}}/properties/{{propertyId}}/leases/{{leaseId}}
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"version":{{leaseVersion}},"terms":{"title":"Residential agreement","startDate":"{{startDate}}","endDate":"{{endDate}}","monthlyRent":"25000.00","deposit":"50000.00","currency":"KES","rentDueDay":5,"agreementText":"Replace this with the revised negotiated agreement text."}}
+
+### Send the current draft for tenant review
+POST {{baseUrl}}/api/v1/organizations/{{ownerOrganizationId}}/properties/{{propertyId}}/leases/{{leaseId}}/send
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"version":{{leaseVersion}}}
+
+### Tenant detail; only shared documents are visible here
+GET {{baseUrl}}/api/v1/me/leases/{{leaseId}}
+Authorization: Bearer {{tenantToken}}
+
+### Download and review the exact UTF-8 bytes whose SHA-256 is documentHash
+GET {{baseUrl}}/api/v1/me/leases/{{leaseId}}/revisions/{{revisionId}}/document
+Authorization: Bearer {{tenantToken}}
+
+### Tenant signs this revision; password comes from the private environment
+POST {{baseUrl}}/api/v1/me/leases/{{leaseId}}/sign
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"version":{{leaseVersion}},"revisionId":"{{revisionId}}","evidence":{"documentHash":"{{documentHash}}","typedName":"{{tenantLegalName}}","password":"{{tenantPassword}}","consent":true}}
+
+### Owner representative signs; use the current version after the tenant signed (either order works)
+POST {{baseUrl}}/api/v1/organizations/{{ownerOrganizationId}}/properties/{{propertyId}}/leases/{{leaseId}}/sign
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"version":{{leaseVersion}},"revisionId":"{{revisionId}}","evidence":{"documentHash":"{{documentHash}}","typedName":"{{ownerDisplayName}}","password":"{{ownerPassword}}","consent":true}}
+
+### Execution receipt requires both parties to have signed the same revision
+GET {{baseUrl}}/api/v1/me/leases/{{leaseId}}/revisions/{{revisionId}}/receipt
+Authorization: Bearer {{tenantToken}}
+
+### Alternate unsigned path: recall to a fresh draft; all old signatures stay with the old revision
+POST {{baseUrl}}/api/v1/organizations/{{ownerOrganizationId}}/properties/{{propertyId}}/leases/{{leaseId}}/recall
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"version":{{leaseVersion}},"message":"Please review revised terms before signing again."}
+
+### Alternate unsigned path: tenant declines the SENT agreement
+POST {{baseUrl}}/api/v1/me/leases/{{leaseId}}/decline
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"version":{{leaseVersion}},"message":"Please prepare different terms."}
+
+### Alternate unsigned path: manager cancels; application reservation remains until separately resolved
+POST {{baseUrl}}/api/v1/organizations/{{ownerOrganizationId}}/properties/{{propertyId}}/leases/{{leaseId}}/cancel
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"version":{{leaseVersion}},"message":"This draft will be replaced."}
+
+### Activate a SIGNED lease during its term after confirming move-in
+POST {{baseUrl}}/api/v1/organizations/{{ownerOrganizationId}}/properties/{{propertyId}}/leases/{{leaseId}}/activate
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"version":{{leaseVersion}},"possessionConfirmed":true}
+
+### Tenant previews a proposed early termination; record returned proposalHash
+POST {{baseUrl}}/api/v1/me/leases/{{leaseId}}/terminations/preview
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"version":{{leaseVersion}},"proposedEndDate":"{{proposedEndDate}}","message":"Please end the lease by mutual agreement."}
+
+### Tenant consents to that exact proposal; this creates a PENDING request
+POST {{baseUrl}}/api/v1/me/leases/{{leaseId}}/terminations
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"version":{{leaseVersion}},"proposedEndDate":"{{proposedEndDate}}","message":"Please end the lease by mutual agreement.","evidence":{"documentHash":"{{proposalHash}}","typedName":"{{tenantLegalName}}","password":"{{tenantPassword}}","consent":true}}
+
+### Owner downloads the proposal before providing the other party's consent
+GET {{baseUrl}}/api/v1/organizations/{{ownerOrganizationId}}/properties/{{propertyId}}/leases/{{leaseId}}/terminations/{{terminationId}}/document
+Authorization: Bearer {{ownerToken}}
+
+### Owner accepts; this changes the effective end date but does not release the unit
+POST {{baseUrl}}/api/v1/organizations/{{ownerOrganizationId}}/properties/{{propertyId}}/leases/{{leaseId}}/terminations/{{terminationId}}/accept
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"version":{{leaseVersion}},"evidence":{"documentHash":"{{proposalHash}}","typedName":"{{ownerDisplayName}}","password":"{{ownerPassword}}","consent":true}}
+
+### Alternative: the other party rejects a pending proposal
+POST {{baseUrl}}/api/v1/organizations/{{ownerOrganizationId}}/properties/{{propertyId}}/leases/{{leaseId}}/terminations/{{terminationId}}/reject
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"version":{{leaseVersion}},"message":"Please propose another end date."}
+
+### Alternative: the original requester cancels their pending proposal
+POST {{baseUrl}}/api/v1/me/leases/{{leaseId}}/terminations/{{terminationId}}/cancel
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"version":{{leaseVersion}},"message":"Withdrawing my proposal."}
+
+### Close on/after the natural or mutually accepted end date; unit becomes UNAVAILABLE for checkout
+POST {{baseUrl}}/api/v1/organizations/{{ownerOrganizationId}}/properties/{{propertyId}}/leases/{{leaseId}}/complete
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"version":{{leaseVersion}},"message":"The agreed end date has arrived; checkout is pending."}
+
+### Only after checking vacancy, release the unit to AVAILABLE; no automatic listing publication
+POST {{baseUrl}}/api/v1/organizations/{{ownerOrganizationId}}/properties/{{propertyId}}/leases/{{leaseId}}/release-unit
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"version":{{leaseVersion}},"vacancyConfirmed":true,"message":"Inspection confirms that the unit is vacant."}
+
+### Tenant history and shared revisions
+GET {{baseUrl}}/api/v1/me/leases/{{leaseId}}/history?limit=50&offset=0
+Authorization: Bearer {{tenantToken}}
+
+### Shared revision metadata
+GET {{baseUrl}}/api/v1/me/leases/{{leaseId}}/revisions
+Authorization: Bearer {{tenantToken}}
+
+### Termination proposal history
+GET {{baseUrl}}/api/v1/me/leases/{{leaseId}}/terminations
+Authorization: Bearer {{tenantToken}}
+
+### Tenant dashboard
+GET {{baseUrl}}/api/v1/me/leases/summary
+Authorization: Bearer {{tenantToken}}
+
+### Business dashboard
+GET {{baseUrl}}/api/v1/organizations/{{ownerOrganizationId}}/properties/{{propertyId}}/leases/summary
+Authorization: Bearer {{ownerToken}}
+
+### Existing inbox includes application notifications and new lease URLs
+GET {{baseUrl}}/api/v1/me/notifications
+Authorization: Bearer {{tenantToken}}
