@@ -152,4 +152,9 @@ Private images and approved public galleries are documented in `docs/property-im
 
 ## Tenant application workflow
 
-`docs/rental-applications.md` documents private profiles, consented submissions, reviewer queues/notes, information requests, approvals/rejections, cancellation/withdrawal, unit reservations, dashboard counts, and personal in-app notifications. `api/rental-applications.http` provides requests using separate tenant and reviewer tokens. Approval reserves inventory for the next lease step; lease signing, identity verification, and payment workflows are still future work.
+`docs/rental-applications.md` documents private profiles, consented submissions, reviewer queues/notes, information requests, approvals/rejections, cancellation/withdrawal, unit reservations, dashboard counts, and personal in-app notifications. `api/rental-applications.http` provides requests using separate tenant and reviewer tokens. Approval reserves inventory for lease preparation. Lease drafting/signing and checkout are documented below; identity verification and payments remain future work.
+
+
+## Lease management and signing
+
+`docs/lease-management.md` covers immutable agreement revisions, private tenant review, password-confirmed account-consent signatures, execution receipts, activation, mutual early termination, expiry, and vacancy clearance. `api/lease-management.http` contains tenant/owner requests. Lease events extend the existing in-app inbox. Signed leases retain unit holds until checkout; listings require explicit republication after release. External e-sign providers/certificates, PDF export, renewals, identity verification, and payment/financial reconciliation are not configured in this slice.

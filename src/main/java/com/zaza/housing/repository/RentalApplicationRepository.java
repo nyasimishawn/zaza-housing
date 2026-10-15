@@ -79,7 +79,7 @@ public class RentalApplicationRepository {
     public boolean hasActive(UUID actor, UUID unit) {
         return Boolean.TRUE.equals(jdbc.queryForObject("""
                 SELECT EXISTS(SELECT 1 FROM rental_applications WHERE applicant_id = ? AND unit_id = ?
-                AND status IN ('DRAFT','SUBMITTED','UNDER_REVIEW','INFORMATION_REQUESTED','APPROVED'))
+                AND status IN ('DRAFT','SUBMITTED','UNDER_REVIEW','INFORMATION_REQUESTED','APPROVED','LEASED'))
                 """, Boolean.class, actor, unit));
     }
     public void updateDetails(UUID id, long version, ApplicationDetails details) {

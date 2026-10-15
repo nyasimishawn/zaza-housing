@@ -87,6 +87,15 @@ public class AuthService {
         return users.listUsers(limit, offset);
     }
 
+    public void reauthenticate(AuthenticatedUser actor,String password) {
+        validatePassword(password);
+        var candidate=users.credentials(actor.email());
+        boolean matches=encoder.matches(password,candidate.map(UserCredentials::passwordHash).orElse(dummyHash));
+        if(candidate.isEmpty()||!matches||!candidate.get().active()||!candidate.get().user().id().equals(actor.id())) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED,"Password confirmation failed.");
+        }
+    }
+
     private static void validatePassword(String password) {
         if (password == null || password.length() < 12 || password.getBytes(StandardCharsets.UTF_8).length > 72) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Password must have at least 12 characters and at most 72 UTF-8 bytes.");

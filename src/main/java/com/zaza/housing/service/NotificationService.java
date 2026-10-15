@@ -22,6 +22,11 @@ public class NotificationService {
     public void applicationChanged(UUID applicant, UUID application, UUID event, ApplicationEventType type, String message) {
         notifications.append(applicant, application, event, type, message);
     }
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void leaseChanged(UUID actor,UUID tenant,UUID application,UUID lease,UUID property,UUID event,String type,String message,boolean notifyTenant) {
+        if(notifyTenant) notifications.leaseTenant(tenant,application,lease,event,type,message);
+        else notifications.leaseManagers(actor,application,lease,property,event,type,message);
+    }
     public List<NotificationResponse> list(AuthenticatedUser actor, boolean unreadOnly, int limit, int offset) {
         Pagination.validate(limit, offset);
         return notifications.list(actor.id(), unreadOnly, limit, offset);
