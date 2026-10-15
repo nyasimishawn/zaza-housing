@@ -1,0 +1,15 @@
+package com.zaza.housing.enums;
+
+public enum ServiceCategory {
+  MOVING,
+  PLUMBING,
+  ELECTRICAL,
+  CLEANING,
+  CARPENTRY,
+  PAINTING,
+  APPLIANCE_REPAIR,
+  SECURITY,
+  INTERNET,
+  LANDSCAPING,
+  GENERAL_MAINTENANCE
+}

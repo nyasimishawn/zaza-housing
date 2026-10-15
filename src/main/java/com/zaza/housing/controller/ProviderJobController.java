@@ -1,0 +1,284 @@
+package com.zaza.housing.controller;
+
+import com.zaza.housing.dto.CompleteWorkRequest;
+import com.zaza.housing.dto.CreateServiceQuoteRequest;
+import com.zaza.housing.dto.ProposeWorkVisitRequest;
+import com.zaza.housing.dto.ProviderCalendarResponse;
+import com.zaza.housing.dto.ServiceQuoteResponse;
+import com.zaza.housing.dto.WorkCommandRequest;
+import com.zaza.housing.dto.WorkDashboardResponse;
+import com.zaza.housing.dto.WorkDisputeResponse;
+import com.zaza.housing.dto.WorkEventResponse;
+import com.zaza.housing.dto.WorkEvidenceResponse;
+import com.zaza.housing.dto.WorkNoteRequest;
+import com.zaza.housing.dto.WorkView;
+import com.zaza.housing.dto.WorkVisitResponse;
+import com.zaza.housing.enums.WorkKind;
+import com.zaza.housing.enums.WorkParty;
+import com.zaza.housing.enums.WorkPriority;
+import com.zaza.housing.enums.WorkStatus;
+import com.zaza.housing.enums.WorkVisibility;
+import com.zaza.housing.model.AuthenticatedUser;
+import com.zaza.housing.service.WorkCompletionService;
+import com.zaza.housing.service.WorkEvidenceService;
+import com.zaza.housing.service.WorkReadService;
+import com.zaza.housing.service.WorkRequestService;
+import com.zaza.housing.service.WorkVisitService;
+import com.zaza.housing.util.ImageHttpResponse;
+import jakarta.validation.Valid;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+@RestController
+@RequestMapping("/api/v1/organizations/{organizationId}/service-jobs")
+public class ProviderJobController {
+  private final WorkReadService reads;
+  private final WorkRequestService requests;
+  private final WorkVisitService visits;
+  private final WorkCompletionService completion;
+  private final WorkEvidenceService evidence;
+
+  public ProviderJobController(
+      WorkReadService reads,
+      WorkRequestService requests,
+      WorkVisitService visits,
+      WorkCompletionService completion,
+      WorkEvidenceService evidence) {
+    this.reads = reads;
+    this.requests = requests;
+    this.visits = visits;
+    this.completion = completion;
+    this.evidence = evidence;
+  }
+
+  @GetMapping
+  public List<WorkView> list(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @RequestParam(required = false) WorkStatus status,
+      @RequestParam(required = false) WorkKind kind,
+      @RequestParam(required = false) WorkPriority priority,
+      @RequestParam(defaultValue = "50") int limit,
+      @RequestParam(defaultValue = "0") int offset) {
+    return reads.list(
+        actor, WorkParty.PROVIDER, organizationId, null, status, kind, priority, limit, offset);
+  }
+
+  @GetMapping("/summary")
+  public WorkDashboardResponse summary(
+      @AuthenticationPrincipal AuthenticatedUser actor, @PathVariable UUID organizationId) {
+    return reads.summary(actor, WorkParty.PROVIDER, organizationId, null);
+  }
+
+  @GetMapping("/{id}")
+  public WorkView get(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID id) {
+    return reads.get(actor, WorkParty.PROVIDER, organizationId, null, id);
+  }
+
+  @GetMapping("/{id}/history")
+  public List<WorkEventResponse> history(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID id,
+      @RequestParam(defaultValue = "50") int limit,
+      @RequestParam(defaultValue = "0") int offset) {
+    return reads.history(actor, WorkParty.PROVIDER, organizationId, null, id, limit, offset);
+  }
+
+  @GetMapping("/{id}/quotes")
+  public List<ServiceQuoteResponse> quotes(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID id,
+      @RequestParam(defaultValue = "50") int limit,
+      @RequestParam(defaultValue = "0") int offset) {
+    return reads.quotes(actor, WorkParty.PROVIDER, organizationId, null, id, limit, offset);
+  }
+
+  @GetMapping("/{id}/visits")
+  public List<WorkVisitResponse> visits(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID id,
+      @RequestParam(defaultValue = "50") int limit,
+      @RequestParam(defaultValue = "0") int offset) {
+    return reads.visits(actor, WorkParty.PROVIDER, organizationId, null, id, limit, offset);
+  }
+
+  @GetMapping("/{id}/disputes")
+  public List<WorkDisputeResponse> disputes(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID id,
+      @RequestParam(defaultValue = "50") int limit,
+      @RequestParam(defaultValue = "0") int offset) {
+    return reads.disputes(actor, WorkParty.PROVIDER, organizationId, null, id, limit, offset);
+  }
+
+  @GetMapping("/{id}/evidence")
+  public List<WorkEvidenceResponse> evidence(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID id,
+      @RequestParam(defaultValue = "50") int limit,
+      @RequestParam(defaultValue = "0") int offset) {
+    return evidence.list(actor, WorkParty.PROVIDER, organizationId, null, id, limit, offset);
+  }
+
+  @GetMapping("/{id}/evidence/{imageId}/content")
+  public ResponseEntity<Resource> image(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID id,
+      @PathVariable UUID imageId) {
+    return ImageHttpResponse.content(
+        evidence.content(actor, WorkParty.PROVIDER, organizationId, null, id, imageId));
+  }
+
+  @PostMapping(value = "/{id}/evidence", consumes = "multipart/form-data")
+  public WorkView upload(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID id,
+      @RequestParam UUID requestId,
+      @RequestParam long version,
+      @RequestParam(defaultValue = "SHARED") WorkVisibility visibility,
+      @RequestParam String caption,
+      @RequestPart("file") MultipartFile file) {
+    return evidence.upload(
+        actor,
+        WorkParty.PROVIDER,
+        organizationId,
+        null,
+        id,
+        requestId,
+        version,
+        visibility,
+        caption,
+        file);
+  }
+
+  @GetMapping("/calendar")
+  public List<ProviderCalendarResponse> calendar(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @RequestParam Instant from,
+      @RequestParam Instant to) {
+    return reads.calendar(actor, organizationId, from, to);
+  }
+
+  @PostMapping("/{id}/notes")
+  public WorkView note(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID id,
+      @Valid @RequestBody WorkNoteRequest request) {
+    return requests.note(actor, WorkParty.PROVIDER, organizationId, null, id, request);
+  }
+
+  @PostMapping("/{id}/disputes")
+  public WorkView dispute(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID id,
+      @Valid @RequestBody WorkCommandRequest request) {
+    return completion.dispute(actor, WorkParty.PROVIDER, organizationId, null, id, request);
+  }
+
+  @PostMapping("/{id}/withdraw-dispute")
+  public WorkView withdrawDispute(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID id,
+      @Valid @RequestBody WorkCommandRequest request) {
+    return completion.resolve(actor, WorkParty.PROVIDER, organizationId, null, id, request, false);
+  }
+
+  @PostMapping("/{id}/reschedule")
+  public WorkView reschedule(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID id,
+      @Valid @RequestBody WorkCommandRequest request) {
+    return visits.reschedule(actor, WorkParty.PROVIDER, organizationId, null, id, request);
+  }
+
+  @PostMapping("/{id}/accept")
+  public WorkView accept(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID id,
+      @Valid @RequestBody WorkCommandRequest request) {
+    return requests.providerDecision(actor, organizationId, id, request, true);
+  }
+
+  @PostMapping("/{id}/decline")
+  public WorkView decline(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID id,
+      @Valid @RequestBody WorkCommandRequest request) {
+    return requests.providerDecision(actor, organizationId, id, request, false);
+  }
+
+  @PostMapping("/{id}/release")
+  public WorkView release(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID id,
+      @Valid @RequestBody WorkCommandRequest request) {
+    return requests.release(actor, organizationId, id, request);
+  }
+
+  @PostMapping("/{id}/quotes")
+  public WorkView quote(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID id,
+      @Valid @RequestBody CreateServiceQuoteRequest request) {
+    return visits.quote(actor, organizationId, id, request);
+  }
+
+  @PostMapping("/{id}/visits")
+  public WorkView visit(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID id,
+      @Valid @RequestBody ProposeWorkVisitRequest request) {
+    return visits.propose(actor, WorkParty.PROVIDER, organizationId, null, id, request);
+  }
+
+  @PostMapping("/{id}/start")
+  public WorkView start(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID id,
+      @Valid @RequestBody WorkCommandRequest request) {
+    return visits.start(actor, WorkParty.PROVIDER, organizationId, null, id, request);
+  }
+
+  @PostMapping("/{id}/submit-completion")
+  public WorkView submitCompletion(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID id,
+      @Valid @RequestBody CompleteWorkRequest request) {
+    return completion.submit(actor, WorkParty.PROVIDER, organizationId, null, id, request);
+  }
+}

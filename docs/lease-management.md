@@ -87,3 +87,6 @@ Flutter lease screens, PDF export, external e-sign providers and provider verifi
 
 
 Lease rent billing, verified external payments and deposit reconciliation are now documented in [payments-rent-deposits.md](payments-rent-deposits.md). Configured billing adds move-in and checkout financial gates; unconfigured leases retain their prior behavior.
+
+
+Lease-linked maintenance, private service bookings, provider discovery and work completion are documented in [maintenance-service-requests.md](maintenance-service-requests.md). Started/awaiting-review/disputed maintenance now adds a checkout hold; service jobs do not automatically create rent charges or service payouts.
