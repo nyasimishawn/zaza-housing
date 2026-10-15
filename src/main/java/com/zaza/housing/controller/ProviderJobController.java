@@ -1,7 +1,9 @@
 package com.zaza.housing.controller;
 
 import com.zaza.housing.dto.CompleteWorkRequest;
+import com.zaza.housing.dto.ConversationResponse;
 import com.zaza.housing.dto.CreateServiceQuoteRequest;
+import com.zaza.housing.dto.OpenConversationRequest;
 import com.zaza.housing.dto.ProposeWorkVisitRequest;
 import com.zaza.housing.dto.ProviderCalendarResponse;
 import com.zaza.housing.dto.ServiceQuoteResponse;
@@ -19,6 +21,7 @@ import com.zaza.housing.enums.WorkPriority;
 import com.zaza.housing.enums.WorkStatus;
 import com.zaza.housing.enums.WorkVisibility;
 import com.zaza.housing.model.AuthenticatedUser;
+import com.zaza.housing.service.ConversationService;
 import com.zaza.housing.service.WorkCompletionService;
 import com.zaza.housing.service.WorkEvidenceService;
 import com.zaza.housing.service.WorkReadService;
@@ -45,6 +48,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/v1/organizations/{organizationId}/service-jobs")
 public class ProviderJobController {
+  private final ConversationService conversations;
   private final WorkReadService reads;
   private final WorkRequestService requests;
   private final WorkVisitService visits;
@@ -56,7 +60,9 @@ public class ProviderJobController {
       WorkRequestService requests,
       WorkVisitService visits,
       WorkCompletionService completion,
-      WorkEvidenceService evidence) {
+      WorkEvidenceService evidence,
+      ConversationService conversations) {
+    this.conversations = conversations;
     this.reads = reads;
     this.requests = requests;
     this.visits = visits;
@@ -280,5 +286,14 @@ public class ProviderJobController {
       @PathVariable UUID id,
       @Valid @RequestBody CompleteWorkRequest request) {
     return completion.submit(actor, WorkParty.PROVIDER, organizationId, null, id, request);
+  }
+
+  @PostMapping("/{id}/conversations")
+  public ConversationResponse conversation(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID id,
+      @Valid @RequestBody OpenConversationRequest request) {
+    return conversations.work(actor, WorkParty.PROVIDER, organizationId, null, id, request);
   }
 }

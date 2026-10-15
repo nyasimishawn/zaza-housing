@@ -70,6 +70,19 @@ public class NotificationService {
         account.providerId(), actor, account.id(), event, type, message);
   }
 
+  @Transactional(propagation = Propagation.MANDATORY)
+  public void conversationChanged(
+      UUID actor, UUID conversation, UUID event, String type, List<UUID> recipients, String url) {
+    for (UUID user : recipients)
+      notifications.conversation(
+          user,
+          actor,
+          conversation,
+          event,
+          type,
+          url == null ? "/api/v1/conversations/" + conversation : url);
+  }
+
     public List<NotificationResponse> list(AuthenticatedUser actor, boolean unreadOnly, int limit, int offset) {
         Pagination.validate(limit, offset);
         return notifications.list(actor.id(), unreadOnly, limit, offset);

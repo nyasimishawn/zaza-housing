@@ -28,7 +28,9 @@ public class NotificationRepository {
               rs.getObject("work_request_id", UUID.class),
               rs.getString("work_request_url"),
               rs.getObject("service_payment_account_id", UUID.class),
-              rs.getString("service_payment_url"));
+              rs.getString("service_payment_url"),
+              rs.getObject("conversation_id", UUID.class),
+              rs.getString("conversation_url"));
     private final JdbcTemplate jdbc;
     public NotificationRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
     public void append(UUID user, UUID application, UUID event, ApplicationEventType type, String message) {
@@ -214,6 +216,22 @@ public class NotificationRepository {
           serviceFinance(r.getObject("user_id", UUID.class), actor, account, event, type, message);
         },
         org);
+  }
+
+  public void conversation(
+      UUID user, UUID actor, UUID conversation, UUID event, String type, String url) {
+    if (user.equals(actor)) return;
+    jdbc.update(
+        "INSERT INTO"
+            + " in_app_notifications(id,user_id,conversation_id,conversation_event_id,type,message,conversation_url)"
+            + " VALUES (?,?,?,?,?,?,?) ON CONFLICT(user_id,conversation_event_id) DO NOTHING",
+        UUID.randomUUID(),
+        user,
+        conversation,
+        event,
+        type,
+        "A private conversation or viewing was updated. Open it for details.",
+        url);
   }
 
     public List<NotificationResponse> list(UUID user, boolean unreadOnly, int limit, int offset) {

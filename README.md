@@ -173,3 +173,8 @@ Private images and approved public galleries are documented in `docs/property-im
 ## Service payments and provider payouts
 
 `docs/service-payments-provider-payouts.md` covers quote-bound service accounts, payer payment reports, independent platform verification, refunds/voids, frozen commissions, provider beneficiary verification, completion/dispute holds, reserved payout requests and two-operator external transfer confirmation. `api/service-payments-provider-payouts.http` contains examples. V11/V12 add protected financial evidence and targeted inbox notifications. Collections and transfers are recorded only after independent external checks; live gateway adapters and Flutter screens remain separate work. `ZAZA_SERVICE_COMMISSION_BPS` defaults to zero and applies only when opening a new service account.
+
+
+## Enquiries, viewings and conversations
+
+`docs/enquiries-viewings-conversations.md` covers safe listing contact, prospect/organization inboxes, private lease/work conversations, unread cursors, muted previews, mutually confirmed viewing appointments, conflict-safe rescheduling, and scoped reported-message moderation. `api/enquiries-viewings-conversations.http` provides role-separated examples. V13 extends the existing notification/audit layers. Former agencies and providers lose conversation access when their relationship ends; administrators require an assigned case to read a reported message. Communication is persisted HTTP messaging with bounded polling; Flutter screens, attachments, WebSocket and external email/SMS/push delivery remain separate work.

@@ -36,6 +36,9 @@ management:
     health:
       show-details: never
 zaza:
+  communication:
+    messages-per-minute: ${ZAZA_MESSAGES_PER_MINUTE:30}
+    enquiries-per-hour: ${ZAZA_ENQUIRIES_PER_HOUR:20}
   services:
     commission-bps: ${ZAZA_SERVICE_COMMISSION_BPS:0}
   videos:

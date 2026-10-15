@@ -1,6 +1,8 @@
 package com.zaza.housing.config;
 
 import com.zaza.housing.controller.ApplicationReviewController;
+import com.zaza.housing.controller.ConversationController;
+import com.zaza.housing.controller.ConversationModerationController;
 import com.zaza.housing.controller.LeaseBillingController;
 import com.zaza.housing.controller.LeaseManagementController;
 import com.zaza.housing.controller.MaintenanceController;
@@ -15,6 +17,7 @@ import com.zaza.housing.controller.TenantBillingController;
 import com.zaza.housing.controller.TenantLeaseController;
 import com.zaza.housing.controller.TenantProfileController;
 import com.zaza.housing.controller.TenantWorkRequestController;
+import com.zaza.housing.controller.ViewingController;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageConverter;
@@ -39,7 +42,10 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
       ServiceProviderController.class,
       ServicePaymentController.class,
       ProviderPayoutController.class,
-      ServiceFinanceAdminController.class
+      ServiceFinanceAdminController.class,
+      ConversationController.class,
+      ViewingController.class,
+      ConversationModerationController.class
     })
 public class PrivateWorkflowResponseAdvice implements ResponseBodyAdvice<Object> {
     @Override public boolean supports(MethodParameter method, Class<? extends HttpMessageConverter<?>> converter) { return true; }

@@ -3,7 +3,9 @@ package com.zaza.housing.controller;
 import com.zaza.housing.dto.AssignWorkRequest;
 import com.zaza.housing.dto.CompleteWorkRequest;
 import com.zaza.housing.dto.ConsentWorkRequest;
+import com.zaza.housing.dto.ConversationResponse;
 import com.zaza.housing.dto.CreateWorkRequest;
+import com.zaza.housing.dto.OpenConversationRequest;
 import com.zaza.housing.dto.OpenServiceAccountRequest;
 import com.zaza.housing.dto.ProposeWorkVisitRequest;
 import com.zaza.housing.dto.ServiceAccountResponse;
@@ -23,6 +25,7 @@ import com.zaza.housing.enums.WorkPriority;
 import com.zaza.housing.enums.WorkStatus;
 import com.zaza.housing.enums.WorkVisibility;
 import com.zaza.housing.model.AuthenticatedUser;
+import com.zaza.housing.service.ConversationService;
 import com.zaza.housing.service.ServicePaymentService;
 import com.zaza.housing.service.WorkCompletionService;
 import com.zaza.housing.service.WorkEvidenceService;
@@ -49,6 +52,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/v1/organizations/{organizationId}/properties/{propertyId}/work-requests")
 public class MaintenanceController {
+  private final ConversationService conversations;
   private final ServicePaymentService servicePayments;
   private final WorkReadService reads;
   private final WorkRequestService requests;
@@ -62,7 +66,9 @@ public class MaintenanceController {
       WorkVisitService visits,
       WorkCompletionService completion,
       WorkEvidenceService evidence,
-      ServicePaymentService servicePayments) {
+      ServicePaymentService servicePayments,
+      ConversationService conversations) {
+    this.conversations = conversations;
     this.reads = reads;
     this.requests = requests;
     this.visits = visits;
@@ -389,6 +395,17 @@ public class MaintenanceController {
       @PathVariable UUID id,
       @Valid @RequestBody OpenServiceAccountRequest request) {
     return servicePayments.open(
+        actor, WorkParty.COORDINATOR, organizationId, propertyId, id, request);
+  }
+
+  @PostMapping("/{id}/conversations")
+  public ConversationResponse conversation(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID propertyId,
+      @PathVariable UUID id,
+      @Valid @RequestBody OpenConversationRequest request) {
+    return conversations.work(
         actor, WorkParty.COORDINATOR, organizationId, propertyId, id, request);
   }
 }

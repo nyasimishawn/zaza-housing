@@ -3,6 +3,7 @@ package com.zaza.housing.controller;
 import com.zaza.housing.dto.ActivateLeaseRequest;
 import com.zaza.housing.dto.BillingCurrencySummaryResponse;
 import com.zaza.housing.dto.ConfirmLeaseTerminationRequest;
+import com.zaza.housing.dto.ConversationResponse;
 import com.zaza.housing.dto.CreateLeaseRequest;
 import com.zaza.housing.dto.CreateLeaseTerminationRequest;
 import com.zaza.housing.dto.LeaseDashboardResponse;
@@ -15,12 +16,14 @@ import com.zaza.housing.dto.LeaseTerminationPreviewRequest;
 import com.zaza.housing.dto.LeaseTerminationPreviewResponse;
 import com.zaza.housing.dto.LeaseTerminationResponse;
 import com.zaza.housing.dto.LeaseVersionRequest;
+import com.zaza.housing.dto.OpenConversationRequest;
 import com.zaza.housing.dto.ReleaseLeaseUnitRequest;
 import com.zaza.housing.dto.ReviseLeaseRequest;
 import com.zaza.housing.dto.SignLeaseRequest;
 import com.zaza.housing.enums.LeaseStatus;
 import com.zaza.housing.model.AuthenticatedUser;
 import com.zaza.housing.service.BillingReportService;
+import com.zaza.housing.service.ConversationService;
 import com.zaza.housing.service.LeaseReadService;
 import com.zaza.housing.service.LeaseService;
 import com.zaza.housing.service.LeaseTerminationService;
@@ -44,11 +47,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/organizations/{organizationId}/properties/{propertyId}/leases")
 public class LeaseManagementController {
+  private final ConversationService conversations;
     private final BillingReportService billingReports;
     private final LeaseService leases;
     private final LeaseReadService reads;
     private final LeaseTerminationService endings;
-    public LeaseManagementController(LeaseService leases,LeaseReadService reads,LeaseTerminationService endings,BillingReportService billingReports) {
+
+  public LeaseManagementController(
+      LeaseService leases,
+      LeaseReadService reads,
+      LeaseTerminationService endings,
+      BillingReportService billingReports,
+      ConversationService conversations) {
+    this.conversations = conversations;
         this.leases=leases;
         this.reads=reads;
         this.endings=endings;
@@ -191,7 +202,8 @@ public class LeaseManagementController {
             @PathVariable UUID id,
             @PathVariable UUID revisionId) {
         var revision=reads.revision(actor,organizationId,propertyId,id,revisionId);
-        return AgreementHttpResponse.document(revision.document(),"lease-"+id+"-r"+revision.number()+".txt");
+    return AgreementHttpResponse.document(
+        revision.document(), "lease-" + id + "-r" + revision.number() + ".txt");
     }
     @GetMapping("/{id}/revisions/{revisionId}/receipt")
     public LeaseSigningReceipt receipt(
@@ -238,7 +250,8 @@ public class LeaseManagementController {
             @PathVariable UUID id,
             @PathVariable UUID terminationId) {
         var ending=reads.termination(actor,organizationId,propertyId,id,terminationId);
-        return AgreementHttpResponse.document(ending.document(),"termination-"+terminationId+".txt");
+    return AgreementHttpResponse.document(
+        ending.document(), "termination-" + terminationId + ".txt");
     }
     @PostMapping("/{id}/terminations/{terminationId}/accept")
     public LeaseResponse acceptTermination(
@@ -270,4 +283,14 @@ public class LeaseManagementController {
             @Valid @RequestBody LeaseReasonRequest request) {
         return endings.resolve(actor,organizationId,propertyId,id,terminationId,request,true);
     }
+
+  @PostMapping("/{id}/conversations")
+  public ConversationResponse conversation(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID organizationId,
+      @PathVariable UUID propertyId,
+      @PathVariable UUID id,
+      @Valid @RequestBody OpenConversationRequest request) {
+    return conversations.lease(actor, organizationId, propertyId, id, request);
+  }
 }
