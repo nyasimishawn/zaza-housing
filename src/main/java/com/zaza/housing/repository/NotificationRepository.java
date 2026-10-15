@@ -37,6 +37,22 @@ public class NotificationRepository {
                 """,rs->{leaseNotification(rs.getObject("user_id",UUID.class),application,lease,event,type,message,
                         "/api/v1/organizations/"+rs.getObject("organization_id",UUID.class)+"/properties/"+property+"/leases/"+lease);},property,actor);
     }
+    public void billingTenant(UUID user,UUID application,UUID lease,UUID event,String type,String message) {
+        billingNotification(user,application,lease,event,type,message,"/api/v1/me/leases/"+lease+"/billing");
+    }
+    private void billingNotification(UUID user,UUID application,UUID lease,UUID event,String type,String message,String url) {
+        jdbc.update("INSERT INTO in_app_notifications(id,user_id,application_id,lease_id,billing_event_id,type,message,lease_url) VALUES (?,?,?,?,?,?,?,?)",UUID.randomUUID(),user,application,lease,event,type,message,url);
+    }
+    public void billingManagers(UUID actor,UUID application,UUID lease,UUID property,UUID event,String type,String message) {
+        jdbc.query("""
+                SELECT DISTINCT ON (m.user_id) m.user_id,m.organization_id FROM organization_memberships m
+                JOIN properties p ON p.id=? AND (m.organization_id=p.owner_organization_id OR m.organization_id=p.manager_organization_id)
+                JOIN app_users u ON u.id=m.user_id AND u.active
+                WHERE m.role IN ('OWNER','ADMIN') AND m.user_id<>?
+                ORDER BY m.user_id,CASE WHEN m.organization_id=p.owner_organization_id THEN 0 ELSE 1 END
+                """,rs->{billingNotification(rs.getObject("user_id",UUID.class),application,lease,event,type,message,
+                        "/api/v1/organizations/"+rs.getObject("organization_id",UUID.class)+"/properties/"+property+"/leases/"+lease+"/billing");},property,actor);
+    }
     public List<NotificationResponse> list(UUID user, boolean unreadOnly, int limit, int offset) {
         return jdbc.query("SELECT * FROM in_app_notifications WHERE user_id = ?" + (unreadOnly ? " AND read_at IS NULL" : "")
                 + " ORDER BY created_at DESC, id LIMIT ? OFFSET ?", NOTIFICATION, user, limit, offset);

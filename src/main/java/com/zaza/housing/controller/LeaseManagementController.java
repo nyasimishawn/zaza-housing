@@ -1,6 +1,7 @@
 package com.zaza.housing.controller;
 
 import com.zaza.housing.dto.ActivateLeaseRequest;
+import com.zaza.housing.dto.BillingCurrencySummaryResponse;
 import com.zaza.housing.dto.ConfirmLeaseTerminationRequest;
 import com.zaza.housing.dto.CreateLeaseRequest;
 import com.zaza.housing.dto.CreateLeaseTerminationRequest;
@@ -19,6 +20,7 @@ import com.zaza.housing.dto.ReviseLeaseRequest;
 import com.zaza.housing.dto.SignLeaseRequest;
 import com.zaza.housing.enums.LeaseStatus;
 import com.zaza.housing.model.AuthenticatedUser;
+import com.zaza.housing.service.BillingReportService;
 import com.zaza.housing.service.LeaseReadService;
 import com.zaza.housing.service.LeaseService;
 import com.zaza.housing.service.LeaseTerminationService;
@@ -42,13 +44,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/organizations/{organizationId}/properties/{propertyId}/leases")
 public class LeaseManagementController {
+    private final BillingReportService billingReports;
     private final LeaseService leases;
     private final LeaseReadService reads;
     private final LeaseTerminationService endings;
-    public LeaseManagementController(LeaseService leases,LeaseReadService reads,LeaseTerminationService endings) {
+    public LeaseManagementController(LeaseService leases,LeaseReadService reads,LeaseTerminationService endings,BillingReportService billingReports) {
         this.leases=leases;
         this.reads=reads;
         this.endings=endings;
+        this.billingReports=billingReports;
     }
     @GetMapping
     public List<LeaseResponse> list(
@@ -66,6 +70,10 @@ public class LeaseManagementController {
             @PathVariable UUID organizationId,
             @PathVariable UUID propertyId) {
         return reads.summary(actor,organizationId,propertyId);
+    }
+    @GetMapping("/billing-summary")
+    public List<BillingCurrencySummaryResponse> billingSummary(@AuthenticationPrincipal AuthenticatedUser actor,@PathVariable UUID organizationId,@PathVariable UUID propertyId) {
+        return billingReports.summary(actor,organizationId,propertyId);
     }
     @GetMapping("/{id}")
     public LeaseResponse get(

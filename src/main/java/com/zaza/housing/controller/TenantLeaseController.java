@@ -1,5 +1,6 @@
 package com.zaza.housing.controller;
 
+import com.zaza.housing.dto.BillingCurrencySummaryResponse;
 import com.zaza.housing.dto.ConfirmLeaseTerminationRequest;
 import com.zaza.housing.dto.CreateLeaseTerminationRequest;
 import com.zaza.housing.dto.LeaseDashboardResponse;
@@ -14,6 +15,7 @@ import com.zaza.housing.dto.LeaseTerminationResponse;
 import com.zaza.housing.dto.SignLeaseRequest;
 import com.zaza.housing.enums.LeaseStatus;
 import com.zaza.housing.model.AuthenticatedUser;
+import com.zaza.housing.service.BillingReportService;
 import com.zaza.housing.service.LeaseReadService;
 import com.zaza.housing.service.LeaseService;
 import com.zaza.housing.service.LeaseTerminationService;
@@ -36,13 +38,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/me/leases")
 public class TenantLeaseController {
+    private final BillingReportService billingReports;
     private final LeaseService leases;
     private final LeaseReadService reads;
     private final LeaseTerminationService endings;
-    public TenantLeaseController(LeaseService leases,LeaseReadService reads,LeaseTerminationService endings) {
+    public TenantLeaseController(LeaseService leases,LeaseReadService reads,LeaseTerminationService endings,BillingReportService billingReports) {
         this.leases=leases;
         this.reads=reads;
         this.endings=endings;
+        this.billingReports=billingReports;
     }
     @GetMapping
     public List<LeaseResponse> list(
@@ -55,6 +59,10 @@ public class TenantLeaseController {
     @GetMapping("/summary")
     public LeaseDashboardResponse summary(@AuthenticationPrincipal AuthenticatedUser actor) {
         return reads.summary(actor,null,null);
+    }
+    @GetMapping("/billing-summary")
+    public List<BillingCurrencySummaryResponse> billingSummary(@AuthenticationPrincipal AuthenticatedUser actor) {
+        return billingReports.summary(actor,null,null);
     }
     @GetMapping("/{id}")
     public LeaseResponse get(@AuthenticationPrincipal AuthenticatedUser actor, @PathVariable UUID id) {

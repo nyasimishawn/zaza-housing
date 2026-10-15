@@ -8,7 +8,7 @@ Branch: `feature/lease-management`, based on Develop after PRs #3 and #4 merged.
 .\scripts\start-local.ps1
 ```
 
-Flyway applies V7. Use `api/lease-management.http` with separate tenant and owner/agency tokens and an APPROVED application. Keep password confirmation values in the HTTP client's private environment; do not commit them. All commands require the current lease version returned by GET. Dates are calendar dates evaluated using the backend's UTC clock.
+Flyway applies the V7 lease schema and later feature migrations. Use `api/lease-management.http` with separate tenant and owner/agency tokens and an APPROVED application. Keep password confirmation values in the HTTP client's private environment; do not commit them. All commands require the current lease version returned by GET. Dates are calendar dates evaluated using the backend's UTC clock.
 
 The workflow is draft → send → both parties sign → activate → close at the agreed end date → vacancy clearance. An unsigned agreement can instead be recalled/revised, declined, or cancelled. The early-termination workflow requires consent from both agreement parties and preserves the original signed agreement.
 
@@ -16,7 +16,7 @@ The workflow is draft → send → both parties sign → activate → close at t
 
 Create a lease from the current approved application version. Its tracked unit reservation must still be ACTIVE/RESERVED and have the expected unit version. One live lease hold is allowed per application/unit.
 
-Provide a title, start/end dates, monthly rent, deposit, ISO currency, monthly due day (1–28), and the agreement text. Text must be 20–20,000 characters; monetary amounts are nonnegative with at most two decimal places. Start dates cannot be in the past when creating, revising, sending, or signing; end dates must follow the start. The agreement text is supplied by the business; the backend does not generate jurisdiction-specific contractual clauses or billing/proration rules.
+Provide a title, start/end dates, monthly rent, deposit, ISO currency, monthly due day (1–28), and the agreement text. Text must be 20–20,000 characters; monetary amounts are nonnegative with at most two decimal places. Start dates cannot be in the past when creating, revising, sending, or signing; end dates must follow the start. The agreement text is supplied by the business; the backend does not generate jurisdiction-specific contractual clauses. Billing requires an explicitly selected policy as described in payments-rent-deposits.md.
 
 Each draft edit appends a new immutable revision. Its generated UTF-8 agreement includes the lease ID, revision number, frozen owner business name, tenant name/contact, exact premises/unit details, dates, money fields, and supplied text. SHA-256 is calculated over the exact downloadable bytes. Income and employment screening information are excluded from the agreement.
 
@@ -49,11 +49,11 @@ Once both parties sign the same revision, the lease becomes SIGNED and its appli
 
 Application withdrawal/cancellation and ordinary unit edits are blocked while a lease holds the unit. Cancelling an unsigned lease releases its lease hold but leaves the approved application reservation intact; withdraw/cancel the application separately to release that reservation, or create a replacement lease.
 
-Activation requires both signatures, an active property/tenant account, the tracked reservation, a date within the agreed term, and `possessionConfirmed: true`. It changes the unit to OCCUPIED and consumes the application reservation. It records a business handover confirmation; payment verification is not implemented.
+Activation requires both signatures, an active property/tenant account, the tracked reservation, a date within the agreed term, and `possessionConfirmed: true`. It changes the unit to OCCUPIED and consumes the application reservation. It records a business handover confirmation. If billing is configured, allocated verified funds must cover the deposit and rent due through today before activation.
 
 Closure requires the natural end date or a mutually accepted early end date to have arrived. It moves the unit to UNAVAILABLE and closes the application. A signed lease that never activated can also close at natural expiry or an agreed earlier date, preventing an indefinite reservation. Pending unaccepted termination proposals are cancelled when a lease closes naturally.
 
-The unit remains held for checkout after closure. `release-unit` requires an authorized manager, the current lease/unit versions, `vacancyConfirmed: true`, and a note. Only then does the unit become AVAILABLE and its lease hold end. Closure/clearance remain possible for archived properties. Listings/media do not automatically republish; review and publish again with current inventory versions. Inspection, deposit reconciliation, payments/refunds, and financial checkout are not verified by this manual vacancy confirmation.
+The unit remains held for checkout after closure. `release-unit` requires an authorized manager, the current lease/unit versions, `vacancyConfirmed: true`, and a note. Only then does the unit become AVAILABLE and its lease hold end. Closure/clearance remain possible for archived properties. Listings/media do not automatically republish; review and publish again with current inventory versions. When billing is configured, financial checkout readiness is also required: finalized billing, resolved payment reports, cleared invoices, no unallocated funds and no held deposit. Vacancy confirmation remains separate from financial clearance. Inspection itself remains a business confirmation.
 
 ## Early termination
 
@@ -83,4 +83,7 @@ Existing in-app notifications now include optional leaseId and leaseUrl; prior a
 
 Tests use the separate `zaza_foundation_test` schema, real HTTP requests, and PostgreSQL. Coverage includes exact bytes/digests, privacy, signing order/consent/password/name checks, recall and stale evidence, concurrency, agency/owner permissions, application holds, activation, natural/early closure, vacancy release, history protection, and rollback on audit/notification failures. A test-only controllable clock verifies future end dates and expiry without changing the system clock.
 
-Flutter lease screens, PDF export, external e-sign providers and provider verification, KYC/MFA, renewal/amendment proposals for executed agreements, rent schedules, billing/payment ledgers, financial move-out reconciliation, retention policies, and external notifications remain future work.
+Flutter lease screens, PDF export, external e-sign providers and provider verification, KYC/MFA, renewal/amendment proposals for executed agreements, retention policies, and external notifications remain future work.
+
+
+Lease rent billing, verified external payments and deposit reconciliation are now documented in [payments-rent-deposits.md](payments-rent-deposits.md). Configured billing adds move-in and checkout financial gates; unconfigured leases retain their prior behavior.

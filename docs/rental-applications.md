@@ -101,9 +101,12 @@ Inbox: GET `/api/v1/me/notifications`, GET `/api/v1/me/notifications/summary`, P
 
 Tests use only the separate `zaza_foundation_test` schema. Coverage includes profiles, consent/snapshots, full information-review-approval flows, draft/tenant/organization isolation, membership/delegation revocation, validation, stale versions/terms, competing approvals, duplicate drafts, unit guards, cancellation/withdrawal, append-only history, personal notifications, and audit/notification rollback.
 
-Flutter tenant/staff dashboards and application screens are not connected yet. Identity/document verification, protected application uploads, viewing requests, rent/deposit schedules, payments, reservation expiry, retention/deletion policies, and external notification delivery remain future work. Lease drafting/signing and checkout are implemented in `docs/lease-management.md`.
+Flutter tenant/staff dashboards and application screens are not connected yet. Identity/document verification, protected application uploads, viewing requests, online payment providers, reservation expiry, retention/deletion policies, and external notification delivery remain future work. Lease drafting/signing and checkout are implemented in `docs/lease-management.md`.
 
 
 ## Lease handoff
 
 A lease holding an approved application blocks application withdrawal/cancellation until that lease is resolved. Cancel or decline an unsigned lease before releasing its application reservation. Once both parties sign, the application becomes `LEASED` and its further lifecycle is managed through the lease APIs. Closing the lease changes the application to `CLOSED`; vacancy clearance and explicit listing republication are required before reletting. Both new statuses appear in application dashboard counts. `LEASED` remains part of the one-active-application-per-applicant/unit constraint; `CLOSED` is historical.
+
+
+Lease rent billing, verified external payments and deposit reconciliation are now documented in [payments-rent-deposits.md](payments-rent-deposits.md). Configured billing adds move-in and checkout financial gates; unconfigured leases retain their prior behavior.

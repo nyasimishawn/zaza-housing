@@ -152,9 +152,14 @@ Private images and approved public galleries are documented in `docs/property-im
 
 ## Tenant application workflow
 
-`docs/rental-applications.md` documents private profiles, consented submissions, reviewer queues/notes, information requests, approvals/rejections, cancellation/withdrawal, unit reservations, dashboard counts, and personal in-app notifications. `api/rental-applications.http` provides requests using separate tenant and reviewer tokens. Approval reserves inventory for lease preparation. Lease drafting/signing and checkout are documented below; identity verification and payments remain future work.
+`docs/rental-applications.md` documents private profiles, consented submissions, reviewer queues/notes, information requests, approvals/rejections, cancellation/withdrawal, unit reservations, dashboard counts, and personal in-app notifications. `api/rental-applications.http` provides requests using separate tenant and reviewer tokens. Approval reserves inventory for lease preparation. Lease drafting/signing and checkout are documented below; identity verification remains future work. Lease billing and verified external payments are documented below.
 
 
 ## Lease management and signing
 
-`docs/lease-management.md` covers immutable agreement revisions, private tenant review, password-confirmed account-consent signatures, execution receipts, activation, mutual early termination, expiry, and vacancy clearance. `api/lease-management.http` contains tenant/owner requests. Lease events extend the existing in-app inbox. Signed leases retain unit holds until checkout; listings require explicit republication after release. External e-sign providers/certificates, PDF export, renewals, identity verification, and payment/financial reconciliation are not configured in this slice.
+`docs/lease-management.md` covers immutable agreement revisions, private tenant review, password-confirmed account-consent signatures, execution receipts, activation, mutual early termination, expiry, and vacancy clearance. `api/lease-management.http` contains tenant/owner requests. Lease events extend the existing in-app inbox. Signed leases retain unit holds until checkout; listings require explicit republication after release. External e-sign providers/certificates, PDF export, renewals and identity verification remain future work. Payment/financial reconciliation is documented below.
+
+
+## Payments, rent and deposits
+
+`docs/payments-rent-deposits.md` covers calendar rent billing, invoices/credits, tenant payment reports, owner verification, receipts, allocations/reversals, verified external refunds, currency-separated reports and deposit reconciliation with checkout gates. `api/payments-rent-deposits.http` contains examples. V8/V9 add protected ledger history and billing source terms. Online providers/transfers are not configured; all receipt/refund records require independently checked external payments. Open billing explicitly for each signed lease to enable financial move-in/checkout checks.

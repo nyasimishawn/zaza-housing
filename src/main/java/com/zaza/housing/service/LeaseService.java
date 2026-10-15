@@ -24,7 +24,10 @@ import com.zaza.housing.model.LeaseRevision;
 import com.zaza.housing.model.Property;
 import com.zaza.housing.model.PropertyUnit;
 import com.zaza.housing.model.RentalLease;
-import com.zaza.housing.repository.*;
+import com.zaza.housing.repository.AuthRepository;
+import com.zaza.housing.repository.LeaseRepository;
+import com.zaza.housing.repository.PropertyRepository;
+import com.zaza.housing.repository.RentalApplicationRepository;
 import com.zaza.housing.util.AgreementDocuments;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -48,10 +51,11 @@ public class LeaseService {
     private final LeaseActivityService activity;
     private final AuditService audit;
     private final Clock clock;
+    private final BillingGuardService billingGuard;
     public LeaseService(LeaseRepository leases,RentalApplicationRepository applications,PropertyRepository inventory,AuthRepository users,
-            PropertyService properties,LeaseAccessService access,LeaseReadService reads,LeaseSignatureService signing,LeaseActivityService activity,AuditService audit,Clock clock) {
+            PropertyService properties,LeaseAccessService access,LeaseReadService reads,LeaseSignatureService signing,LeaseActivityService activity,AuditService audit,Clock clock,BillingGuardService billingGuard) {
         this.leases=leases; this.applications=applications; this.inventory=inventory; this.users=users; this.properties=properties;
-        this.access=access; this.reads=reads; this.signing=signing; this.activity=activity; this.audit=audit; this.clock=clock;
+        this.access=access; this.reads=reads; this.signing=signing; this.activity=activity; this.audit=audit; this.clock=clock; this.billingGuard=billingGuard;
     }
     @Transactional
     public LeaseResponse create(AuthenticatedUser actor,UUID organization,UUID propertyId,CreateLeaseRequest request) {
@@ -157,6 +161,7 @@ public class LeaseService {
         LocalDate end=effectiveEnd(previous,revision);
         if(today().isBefore(revision.terms().startDate())||!today().isBefore(end)) throw LeaseAccessService.conflict("Activation must occur during the agreed lease term.");
         var unit=inventory.unit(property,previous.unitId()).orElseThrow();
+        billingGuard.activation(id);
         leases.activate(previous);
         auditUnit(actor,organization,previous,unit,"LEASE_UNIT_OCCUPIED");
         return recorded(actor,organization,previous,LeaseParty.LESSOR,LeaseEventType.ACTIVATED,"Move-in confirmed and lease activated.",true,true);
@@ -184,6 +189,7 @@ public class LeaseService {
         if(!Boolean.TRUE.equals(request.vacancyConfirmed())) throw invalid("Confirm that the unit is vacant before releasing it.");
         if(previous.unitReleasedAt()!=null) throw LeaseAccessService.conflict("This unit has already been released.");
         var unit=inventory.unit(property,previous.unitId()).orElseThrow();
+        billingGuard.checkout(id);
         leases.releaseUnit(previous);
         auditUnit(actor,organization,previous,unit,"LEASE_UNIT_RELEASED");
         return recorded(actor,organization,previous,LeaseParty.LESSOR,LeaseEventType.UNIT_RELEASED,request.message().trim(),true,true);

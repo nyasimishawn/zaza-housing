@@ -28,7 +28,8 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         boolean protectedEndpoint = "POST".equals(request.getMethod()) &&
                 ("/api/v1/auth/login".equals(request.getServletPath()) ||
                  "/api/v1/auth/register".equals(request.getServletPath()) ||
-                 request.getServletPath().matches("/api/v1/(me|organizations/[^/]+/properties/[^/]+)/leases/[^/]+/(sign|terminations|terminations/[^/]+/accept)"));
+                 request.getServletPath().matches("/api/v1/(me|organizations/[^/]+/properties/[^/]+)/leases/[^/]+/(sign|terminations|terminations/[^/]+/accept)" ) ||
+                 request.getServletPath().matches("/api/v1/organizations/[^/]+/properties/[^/]+/leases/[^/]+/billing/(payments|payments/[^/]+/(void|refunds)|claims/[^/]+/(verify|reject)|deposit/refunds)"));
         if (protectedEndpoint) {
             long minute = clock.instant().getEpochSecond() / 60;
             windows.entrySet().removeIf(entry -> entry.getValue().minute < minute);

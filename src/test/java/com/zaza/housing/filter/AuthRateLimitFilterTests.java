@@ -48,6 +48,16 @@ class AuthRateLimitFilterTests {
         assertThat(attempt(filter,"/api/v1/me/leases/a/terminations/preview")).isEqualTo(204);
     }
 
+    @Test
+    void manualPaymentVerificationAndRefundsSharePasswordAttemptLimits() throws Exception {
+        String base="/api/v1/organizations/o/properties/p/leases/l/billing/";
+        for(String action:java.util.List.of("payments","payments/r/void","payments/r/refunds","claims/c/verify","claims/c/reject","deposit/refunds")) {
+            var filter=new AuthRateLimitFilter(Clock.systemUTC(),1);
+            assertThat(attempt(filter,base+action)).isEqualTo(204);
+            assertThat(attempt(filter,base+action)).isEqualTo(429);
+        }
+    }
+
     private int attempt(AuthRateLimitFilter filter,String path) throws Exception {
         var request = new MockHttpServletRequest("POST", path);
         request.setServletPath(path);
