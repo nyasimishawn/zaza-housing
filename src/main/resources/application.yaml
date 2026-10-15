@@ -36,6 +36,8 @@ management:
     health:
       show-details: never
 zaza:
+  services:
+    commission-bps: ${ZAZA_SERVICE_COMMISSION_BPS:0}
   videos:
     directory: ${ZAZA_VIDEO_DIRECTORY:.local-videos}
     ffmpeg: ${ZAZA_FFMPEG:.tools/ffmpeg/bin/ffmpeg.exe}

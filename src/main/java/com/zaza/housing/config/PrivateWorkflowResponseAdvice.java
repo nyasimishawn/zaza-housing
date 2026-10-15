@@ -6,6 +6,9 @@ import com.zaza.housing.controller.LeaseManagementController;
 import com.zaza.housing.controller.MaintenanceController;
 import com.zaza.housing.controller.NotificationController;
 import com.zaza.housing.controller.ProviderJobController;
+import com.zaza.housing.controller.ProviderPayoutController;
+import com.zaza.housing.controller.ServiceFinanceAdminController;
+import com.zaza.housing.controller.ServicePaymentController;
 import com.zaza.housing.controller.ServiceProviderController;
 import com.zaza.housing.controller.TenantApplicationController;
 import com.zaza.housing.controller.TenantBillingController;
@@ -20,8 +23,24 @@ import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
 
-@RestControllerAdvice(assignableTypes = {TenantProfileController.class, TenantApplicationController.class,
-        ApplicationReviewController.class, NotificationController.class, TenantLeaseController.class, LeaseManagementController.class, LeaseBillingController.class, TenantBillingController.class, TenantWorkRequestController.class, MaintenanceController.class, ProviderJobController.class, ServiceProviderController.class})
+@RestControllerAdvice(
+    assignableTypes = {
+      TenantProfileController.class,
+      TenantApplicationController.class,
+      ApplicationReviewController.class,
+      NotificationController.class,
+      TenantLeaseController.class,
+      LeaseManagementController.class,
+      LeaseBillingController.class,
+      TenantBillingController.class,
+      TenantWorkRequestController.class,
+      MaintenanceController.class,
+      ProviderJobController.class,
+      ServiceProviderController.class,
+      ServicePaymentController.class,
+      ProviderPayoutController.class,
+      ServiceFinanceAdminController.class
+    })
 public class PrivateWorkflowResponseAdvice implements ResponseBodyAdvice<Object> {
     @Override public boolean supports(MethodParameter method, Class<? extends HttpMessageConverter<?>> converter) { return true; }
     @Override public Object beforeBodyWrite(Object body, MethodParameter method, MediaType contentType,
