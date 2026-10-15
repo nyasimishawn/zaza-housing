@@ -1,0 +1,187 @@
+@base = http://127.0.0.1:8080
+@customerToken = REPLACE_WITH_CUSTOMER_BEARER_TOKEN
+@managerToken = REPLACE_WITH_OWNER_OR_CURRENT_AGENCY_ADMIN_TOKEN
+@providerToken = REPLACE_WITH_ACCEPTED_PROVIDER_OWNER_TOKEN
+@moderatorToken = REPLACE_WITH_INDEPENDENT_PLATFORM_ADMIN_TOKEN
+@moderatorPassword = REPLACE_LOCALLY_DO_NOT_COMMIT_A_REAL_PASSWORD
+@listingId = REPLACE_UUID
+@conversationId = REPLACE_UUID
+@viewingId = REPLACE_UUID
+@messageId = REPLACE_UUID
+@reportId = REPLACE_UUID
+@organizationId = REPLACE_UUID
+@propertyId = REPLACE_UUID
+@leaseId = REPLACE_UUID
+@workId = REPLACE_UUID
+@listingVersion = 1
+@conversationVersion = 1
+@viewingVersion = 1
+@caseVersion = 0
+@conversation = {{base}}/api/v1/conversations/{{conversationId}}
+
+### Read the safe public projection and current listing version after login.
+GET {{base}}/api/v1/listings/{{listingId}}/contact
+Authorization: Bearer {{customerToken}}
+
+### Open one enquiry for this prospect/listing. Save the returned conversation ID.
+POST {{base}}/api/v1/listings/{{listingId}}/enquiries
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","listingVersion":{{listingVersion}},"message":"I would like to arrange a viewing of this property."}
+
+### Private customer/management/provider inbox through your current authorized roles.
+GET {{base}}/api/v1/me/conversations?unreadOnly=true&limit=50&offset=0
+Authorization: Bearer {{customerToken}}
+
+### Organization inbox; ordinary members cannot read these conversations.
+GET {{base}}/api/v1/organizations/{{organizationId}}/conversations?kind=ENQUIRY&status=OPEN
+Authorization: Bearer {{managerToken}}
+
+### Current conversation and your personal unread/preferences state.
+GET {{conversation}}
+Authorization: Bearer {{customerToken}}
+
+### Send plain text; retain this exact requestId/payload to retry a failed connection.
+POST {{conversation}}/messages
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","body":"The property is available for a viewing. Please suggest a time."}
+
+### Bounded chronological polling. Continue after the last displayed sequence.
+GET {{conversation}}/messages?after=0&limit=50
+Authorization: Bearer {{customerToken}}
+
+### Private read cursor; the value must not exceed lastSequence.
+POST {{conversation}}/read
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","throughSequence":2}
+
+### Mute only your future ordinary conversation notifications.
+POST {{conversation}}/preferences
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","muted":true}
+
+### Initial proposal uses the current conversation version and reviewed listing version.
+# Replace times with a future 15-minute–2-hour interval within 90 days.
+POST {{conversation}}/viewings
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","version":{{conversationVersion}},"listingVersion":{{listingVersion}},"startAt":"2026-10-20T09:00:00Z","endAt":"2026-10-20T09:30:00Z","meetingInstructions":"Meet at the entrance agreed in this conversation.","reason":"Customer proposes a viewing time for manager confirmation."}
+
+### Only the other side can confirm. Reload the viewing's own version first.
+POST {{conversation}}/viewings/{{viewingId}}/confirm
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","version":{{viewingVersion}},"reason":"Reviewed the listing and confirmed availability for this time."}
+
+### Rescheduling keeps the original confirmed slot until the other party decides.
+POST {{conversation}}/viewings/{{viewingId}}/reschedule
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","version":{{viewingVersion}},"listingVersion":{{listingVersion}},"startAt":"2026-10-20T11:00:00Z","endAt":"2026-10-20T11:30:00Z","meetingInstructions":"Use the same mutually agreed meeting point.","reason":"Manager proposes a replacement time for customer approval."}
+
+### Decline a pending reschedule and retain the previously confirmed appointment.
+POST {{conversation}}/viewings/{{viewingId}}/decline
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","version":{{viewingVersion}},"reason":"The replacement time is unsuitable; keep the original slot."}
+
+### Cancel an active viewing; cancellation also remains possible after listing withdrawal.
+POST {{conversation}}/viewings/{{viewingId}}/cancel
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","version":{{viewingVersion}},"reason":"Please cancel this appointment."}
+
+### Manager records an outcome after the confirmed appointment ends.
+# /no-show uses the same shape; this is an operational attendance record.
+POST {{conversation}}/viewings/{{viewingId}}/complete
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","version":{{viewingVersion}},"reason":"The viewing took place and has ended."}
+
+### Private property calendar: at most 31 days per request.
+GET {{base}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/viewings/calendar?from=2026-10-20T00:00:00Z&to=2026-10-21T00:00:00Z
+Authorization: Bearer {{managerToken}}
+
+### Open the one shared conversation for your executed lease.
+# Manager alternative: POST /api/v1/organizations/{org}/properties/{property}/leases/{lease}/conversations.
+POST {{base}}/api/v1/me/leases/{{leaseId}}/conversations
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","channel":"SHARED"}
+
+### Open an accepted provider job thread. Only maintenance supports PROCUREMENT.
+# Tenant alternative: POST /api/v1/me/work-requests/{work}/conversations with SHARED.
+# Maintenance manager alternative: POST /api/v1/organizations/{org}/properties/{property}/work-requests/{work}/conversations.
+POST {{base}}/api/v1/organizations/{{organizationId}}/service-jobs/{{workId}}/conversations
+Authorization: Bearer {{providerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","channel":"SHARED"}
+
+### Author withdrawal within 15 minutes. The original is retained as protected evidence.
+POST {{conversation}}/messages/{{messageId}}/redact
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","reason":"I shared this text in error."}
+
+### Report another party's message privately. This does not freeze or refund funds.
+POST {{conversation}}/messages/{{messageId}}/reports
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","category":"OTHER","reason":"Please review this particular message for inappropriate content."}
+
+### Reporter's own case status; does not grant new conversation rights.
+GET {{base}}/api/v1/me/conversation-reports/{{reportId}}
+Authorization: Bearer {{customerToken}}
+
+### Moderation metadata queue: no message text or report reasons.
+GET {{base}}/api/v1/admin/conversation-reports?status=OPEN&limit=50
+Authorization: Bearer {{moderatorToken}}
+
+### Independent operator explicitly claims the single-message case.
+POST {{base}}/api/v1/admin/conversation-reports/{{reportId}}/claim
+Authorization: Bearer {{moderatorToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","version":{{caseVersion}},"password":"{{moderatorPassword}}","reason":"Claiming this report for an independent moderation review."}
+
+### Assigned operator only. This read is audited and contains only the reported message.
+GET {{base}}/api/v1/admin/conversation-reports/{{reportId}}/evidence
+Authorization: Bearer {{moderatorToken}}
+
+### Resolve with REDACT or NO_ACTION, preserving original evidence and decision history.
+POST {{base}}/api/v1/admin/conversation-reports/{{reportId}}/resolve
+Authorization: Bearer {{moderatorToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","version":{{caseVersion}},"resolution":"REDACT","password":"{{moderatorPassword}}","reason":"The reported message should be withheld from ordinary readers."}
+
+### Or release an unresolved assigned case; evidence access ends immediately.
+POST {{base}}/api/v1/admin/conversation-reports/{{reportId}}/release
+Authorization: Bearer {{moderatorToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","version":{{caseVersion}},"password":"{{moderatorPassword}}","reason":"Returning this unresolved case for another independent operator."}
+
+### Close only after active viewing appointments are resolved.
+POST {{conversation}}/close
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$guid}}","version":{{conversationVersion}},"reason":"This conversation can be closed."}

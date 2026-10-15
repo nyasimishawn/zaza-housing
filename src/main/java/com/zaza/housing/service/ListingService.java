@@ -1,6 +1,7 @@
 package com.zaza.housing.service;
 
 import com.zaza.housing.dto.CreateListingRequest;
+import com.zaza.housing.dto.EnquiryListingResponse;
 import com.zaza.housing.dto.ListingSearchRequest;
 import com.zaza.housing.dto.ListingSearchResponse;
 import com.zaza.housing.dto.PublicListingResponse;
@@ -117,6 +118,12 @@ public class ListingService {
         RentalListing current = find(candidate.propertyId(), id);
         if (!current.publiclyVisible()) throw new ApiException(HttpStatus.NOT_FOUND, "Listing not found.");
         return current;
+    }
+
+    public EnquiryListingResponse contactListing(UUID id) {
+        RentalListing source = listings.applicationSource(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Listing not found."));
+        return new EnquiryListingResponse(source.version(), source.publicSnapshot());
     }
 
     public PublicListingResponse publicListing(UUID id) {

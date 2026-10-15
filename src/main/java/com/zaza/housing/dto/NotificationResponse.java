@@ -16,4 +16,6 @@ public record NotificationResponse(
     UUID workRequestId,
     String workRequestUrl,
     UUID servicePaymentAccountId,
-    String servicePaymentUrl) {}
+    String servicePaymentUrl,
+    UUID conversationId,
+    String conversationUrl) {}

@@ -80,6 +80,13 @@ class AuthRateLimitFilterTests {
         .isEqualTo(429);
   }
 
+  @Test
+  void moderationPasswordConfirmationsShareTheAuthenticationQuota() throws Exception {
+    var filter = new AuthRateLimitFilter(Clock.systemUTC(), 1);
+    assertThat(attempt(filter, "/api/v1/admin/conversation-reports/r/claim")).isEqualTo(204);
+    assertThat(attempt(filter, "/api/v1/admin/conversation-reports/r/resolve")).isEqualTo(429);
+  }
+
     private int attempt(AuthRateLimitFilter filter,String path) throws Exception {
         var request = new MockHttpServletRequest("POST", path);
         request.setServletPath(path);
