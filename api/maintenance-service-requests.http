@@ -1,0 +1,268 @@
+# Update IDs/tokens and refresh workVersion after every distinct command.
+# Use the same concrete requestId/payload for retries. {{$uuid}} generates a fresh ID on every send.
+# Quotes/completion do not charge a tenant, transfer funds or pay out a provider.
+@host = http://localhost:8080
+@ownerToken = replace-owner-token
+@tenantToken = replace-tenant-token
+@providerToken = replace-provider-token
+@organizationId = replace-owning-organization-uuid
+@providerId = replace-service-provider-organization-uuid
+@propertyId = replace-property-uuid
+@leaseId = replace-lease-uuid
+@offerId = replace-offer-uuid
+@workId = replace-work-request-uuid
+@quoteId = replace-current-quote-uuid
+@visitId = replace-current-visit-uuid
+@imageId = replace-evidence-uuid
+@workVersion = 0
+@profileVersion = 0
+@offerVersion = 0
+@startAt = 2026-10-16T10:00:00Z
+@endAt = 2026-10-16T11:00:00Z
+@validUntil = 2026-10-17T10:00:00Z
+@profile = {{host}}/api/v1/organizations/{{providerId}}/service-profile
+@T = {{host}}/api/v1/me/work-requests/{{workId}}
+@M = {{host}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/work-requests/{{workId}}
+@P = {{host}}/api/v1/organizations/{{providerId}}/service-jobs/{{workId}}
+
+### Public provider discovery (NOT_VERIFIED business listings)
+GET {{host}}/api/v1/service-providers?category=PLUMBING&country=KE&city=Nairobi&limit=50&offset=0
+
+### Provider creates a private profile under a SERVICE_PROVIDER organization
+POST {{profile}}
+Authorization: Bearer {{providerToken}}
+Content-Type: application/json
+
+{"displayName":"Repairs team","description":"Plumbing inspection and repair services supplied by our team.","areas":[{"countryCode":"KE","city":"Nairobi"}]}
+
+### Create a draft offer; quote-only pricing omits amount
+POST {{profile}}/offers
+Authorization: Bearer {{providerToken}}
+Content-Type: application/json
+
+{"category":"PLUMBING","title":"Plumbing inspection","description":"Inspect a reported plumbing fault and propose an agreed repair.","priceUnit":"QUOTE_REQUIRED","currency":"KES"}
+
+### Activate selected offer before publishing its profile
+POST {{profile}}/offers/{{offerId}}/state
+Authorization: Bearer {{providerToken}}
+Content-Type: application/json
+
+{"version":{{offerVersion}},"status":"ACTIVE"}
+
+### Publish profile explicitly; set profileVersion from GET first
+POST {{profile}}/state
+Authorization: Bearer {{providerToken}}
+Content-Type: application/json
+
+{"version":{{profileVersion}},"status":"ACTIVE"}
+
+### Tenant submits maintenance from their ACTIVE lease (no provider preselection)
+POST {{host}}/api/v1/me/work-requests
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","leaseId":"{{leaseId}}","kind":"MAINTENANCE","category":"PLUMBING","priority":"NORMAL","title":"Kitchen tap leak","description":"The kitchen tap has a persistent leak; please inspect and arrange repair."}
+
+### Alternative: private personal booking from SIGNED/ACTIVE lease
+POST {{host}}/api/v1/me/work-requests
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","leaseId":"{{leaseId}}","kind":"SERVICE_BOOKING","category":"PLUMBING","priority":"NORMAL","title":"Personal service booking","description":"Please inspect this personally requested plumbing service scope.","offerId":"{{offerId}}","offerVersion":{{offerVersion}}}
+
+### Refresh workVersion and selected quote/visit IDs
+GET {{T}}
+Authorization: Bearer {{tenantToken}}
+
+### Manager requests missing maintenance information
+POST {{M}}/request-information
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{workVersion}},"priority":"NORMAL","message":"Please describe when the leak occurs and attach a photograph."}
+
+### Occupant responds; work returns to SUBMITTED
+POST {{T}}/respond
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{workVersion}},"message":"The tap leaks continuously even when fully closed."}
+
+### Manager triages maintenance
+POST {{M}}/triage
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{workVersion}},"priority":"HIGH","message":"Inspection needed; review provider availability."}
+
+### Assign the current active offer (offerVersion changes after activation/edit)
+POST {{M}}/assign
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{workVersion}},"offerId":"{{offerId}}","offerVersion":{{offerVersion}},"message":"Provider selected for the reviewed maintenance category and area."}
+
+### Alternative from TRIAGED: internally handled maintenance
+POST {{M}}/assign-internal
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{workVersion}},"message":"The property management team will handle this repair internally."}
+
+### Provider's scoped job; premises withheld until acceptance
+GET {{P}}
+Authorization: Bearer {{providerToken}}
+
+### Provider accepts assignment
+POST {{P}}/accept
+Authorization: Bearer {{providerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{workVersion}},"message":"We accept the assigned service request."}
+
+### Provider proposes a job-specific TOTAL quote, using selected offer's currency
+POST {{P}}/quotes
+Authorization: Bearer {{providerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{workVersion}},"amount":"1500.00","currency":"KES","validUntil":"{{validUntil}}","scope":"Inspect the kitchen tap, replace the agreed fitting and test for leaks."}
+
+### Maintenance procurement quotes: owner/agency read, occupant cannot read
+GET {{M}}/quotes
+Authorization: Bearer {{ownerToken}}
+
+### Owner administrator authorizes maintenance cost (agency cannot approve owner spending)
+POST {{M}}/quotes/{{quoteId}}/accept
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{workVersion}},"consent":true,"message":"I reviewed and authorize this exact repair quote."}
+
+### For a personal booking, the customer instead uses T/quotes/{quoteId}/accept
+# No actual payment or rent charge is created by quote approval.
+
+### Provider proposes visit; internally handled work uses M/visits instead
+POST {{P}}/visits
+Authorization: Bearer {{providerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{workVersion}},"startAt":"{{startAt}}","endAt":"{{endAt}}","accessInstructions":"Ring the bell and meet the occupant at the entrance."}
+
+### Occupant separately grants access and reserves provider calendar capacity
+POST {{T}}/visits/{{visitId}}/accept
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{workVersion}},"consent":true,"message":"I agree to this visit time and will provide access."}
+
+### Start only during the accepted visit window; internal work uses M/start
+POST {{P}}/start
+Authorization: Bearer {{providerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{workVersion}},"message":"The occupant provided access and work has started."}
+
+### Provider uploads private photo; replace local image path
+POST {{P}}/evidence
+Authorization: Bearer {{providerToken}}
+Content-Type: multipart/form-data; boundary=workEvidence
+
+--workEvidence
+Content-Disposition: form-data; name="requestId"
+
+{{$uuid}}
+--workEvidence
+Content-Disposition: form-data; name="version"
+
+{{workVersion}}
+--workEvidence
+Content-Disposition: form-data; name="visibility"
+
+SHARED
+--workEvidence
+Content-Disposition: form-data; name="caption"
+
+Replaced fitting after repair
+--workEvidence
+Content-Disposition: form-data; name="file"; filename="repair.png"
+Content-Type: image/png
+
+< C:/replace-with-local-photo/repair.png
+--workEvidence--
+
+### Submit completion report; internal work uses M/submit-completion
+POST {{P}}/submit-completion
+Authorization: Bearer {{providerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{workVersion}},"summary":"Inspected the tap, replaced the agreed fitting, tested the seals and checked for leaks."}
+
+### Customer reviews actual work; personal booking completes here
+POST {{T}}/confirm-completion
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{workVersion}},"consent":true,"message":"I inspected the repair and confirm that the reported issue is resolved."}
+
+### Maintenance additionally needs manager approval
+POST {{M}}/approve-completion
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{workVersion}},"consent":true,"message":"Occupant confirmation and completion report reviewed; maintenance approved."}
+
+### Alternative to accepting unresolved work: open a dispute case
+POST {{T}}/disputes
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{workVersion}},"message":"The tap still leaks; please review the completion report and arrange rework."}
+
+### Manager requests maintenance rework; personal customer uses T/rework
+POST {{M}}/rework
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{workVersion}},"message":"Please rework within the authorized scope and propose a new visit for occupant consent."}
+
+### Public review only after completed external job; provider members cannot self-rate
+POST {{T}}/reviews
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{workVersion}},"rating":5,"comment":"The agreed repair was completed carefully.","publishReview":true}
+
+### Internal business note; hidden from occupant/provider and their inboxes
+POST {{M}}/notes
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"{{$uuid}}","version":{{workVersion}},"visibility":"INTERNAL","message":"Internal coordination note for property administrators."}
+
+### Work history (visibility depends on current participant)
+GET {{T}}/history?limit=50&offset=0
+Authorization: Bearer {{tenantToken}}
+
+### Private evidence metadata and content
+GET {{T}}/evidence
+Authorization: Bearer {{tenantToken}}
+
+### Exact evidence image still checks request/participant scope
+GET {{T}}/evidence/{{imageId}}/content
+Authorization: Bearer {{tenantToken}}
+
+### Tenant dashboard
+GET {{host}}/api/v1/me/work-requests/summary
+Authorization: Bearer {{tenantToken}}
+
+### Property maintenance queue
+GET {{host}}/api/v1/organizations/{{organizationId}}/properties/{{propertyId}}/work-requests?status=SUBMITTED&priority=HIGH
+Authorization: Bearer {{ownerToken}}
+
+### Provider jobs/dashboard
+GET {{host}}/api/v1/organizations/{{providerId}}/service-jobs/summary
+Authorization: Bearer {{providerToken}}
+
+### Provider calendar; from/to window max 31 days
+GET {{host}}/api/v1/organizations/{{providerId}}/service-jobs/calendar?from={{startAt}}&to={{endAt}}
+Authorization: Bearer {{providerToken}}

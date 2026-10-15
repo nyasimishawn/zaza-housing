@@ -52,10 +52,11 @@ public class LeaseService {
     private final AuditService audit;
     private final Clock clock;
     private final BillingGuardService billingGuard;
+    private final WorkCheckoutGuard workGuard;
     public LeaseService(LeaseRepository leases,RentalApplicationRepository applications,PropertyRepository inventory,AuthRepository users,
-            PropertyService properties,LeaseAccessService access,LeaseReadService reads,LeaseSignatureService signing,LeaseActivityService activity,AuditService audit,Clock clock,BillingGuardService billingGuard) {
+            PropertyService properties,LeaseAccessService access,LeaseReadService reads,LeaseSignatureService signing,LeaseActivityService activity,AuditService audit,Clock clock,BillingGuardService billingGuard,WorkCheckoutGuard workGuard) {
         this.leases=leases; this.applications=applications; this.inventory=inventory; this.users=users; this.properties=properties;
-        this.access=access; this.reads=reads; this.signing=signing; this.activity=activity; this.audit=audit; this.clock=clock; this.billingGuard=billingGuard;
+        this.access=access; this.reads=reads; this.signing=signing; this.activity=activity; this.audit=audit; this.clock=clock; this.billingGuard=billingGuard; this.workGuard=workGuard;
     }
     @Transactional
     public LeaseResponse create(AuthenticatedUser actor,UUID organization,UUID propertyId,CreateLeaseRequest request) {
@@ -189,6 +190,7 @@ public class LeaseService {
         if(!Boolean.TRUE.equals(request.vacancyConfirmed())) throw invalid("Confirm that the unit is vacant before releasing it.");
         if(previous.unitReleasedAt()!=null) throw LeaseAccessService.conflict("This unit has already been released.");
         var unit=inventory.unit(property,previous.unitId()).orElseThrow();
+        workGuard.check(id);
         billingGuard.checkout(id);
         leases.releaseUnit(previous);
         auditUnit(actor,organization,previous,unit,"LEASE_UNIT_RELEASED");

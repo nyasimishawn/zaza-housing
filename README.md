@@ -163,3 +163,8 @@ Private images and approved public galleries are documented in `docs/property-im
 ## Payments, rent and deposits
 
 `docs/payments-rent-deposits.md` covers calendar rent billing, invoices/credits, tenant payment reports, owner verification, receipts, allocations/reversals, verified external refunds, currency-separated reports and deposit reconciliation with checkout gates. `api/payments-rent-deposits.http` contains examples. V8/V9 add protected ledger history and billing source terms. Online providers/transfers are not configured; all receipt/refund records require independently checked external payments. Open billing explicitly for each signed lease to enable financial move-in/checkout checks.
+
+
+## Maintenance and service requests
+
+`docs/maintenance-service-requests.md` covers lease-linked maintenance, private tenant bookings, service-provider profiles/offers and discovery, triage/assignment, quotes, occupant visit consent, scheduling, private photos/notes, completion review, rework/disputes and public customer reviews. `api/maintenance-service-requests.http` has examples. V10 extends the existing notification and lease-checkout layers. Providers are labeled NOT_VERIFIED; service collection/payouts and Flutter screens are not connected.

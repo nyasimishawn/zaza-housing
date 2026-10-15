@@ -3,8 +3,11 @@ package com.zaza.housing.service;
 import com.zaza.housing.dto.NotificationResponse;
 import com.zaza.housing.dto.NotificationSummaryResponse;
 import com.zaza.housing.enums.ApplicationEventType;
+import com.zaza.housing.enums.WorkKind;
+import com.zaza.housing.enums.WorkVisibility;
 import com.zaza.housing.exception.ApiException;
 import com.zaza.housing.model.AuthenticatedUser;
+import com.zaza.housing.model.WorkRequest;
 import com.zaza.housing.repository.NotificationRepository;
 import com.zaza.housing.util.Pagination;
 import java.util.List;
@@ -31,6 +34,15 @@ public class NotificationService {
     public void billingChanged(UUID actor,UUID tenant,UUID application,UUID lease,UUID property,UUID event,String type,String message,boolean notifyTenant) {
         if(notifyTenant) notifications.billingTenant(tenant,application,lease,event,type,message);
         else notifications.billingManagers(actor,application,lease,property,event,type,message);
+    }
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void workChanged(UUID actor,WorkRequest work,UUID previousProvider,UUID event,String type,String message,WorkVisibility visibility) {
+        if(visibility==WorkVisibility.SHARED) {
+            notifications.workRecipient(work.tenantId(),actor,work.id(),event,type,message,"/api/v1/me/work-requests/"+work.id());
+            if(work.providerId()!=null) notifications.workProvider(work.providerId(),actor,work.id(),event,type,message);
+            if(previousProvider!=null&&!previousProvider.equals(work.providerId())) notifications.workProvider(previousProvider,actor,work.id(),event,type,"The work assignment was ended.");
+        }
+        if(work.kind()==WorkKind.MAINTENANCE) notifications.workManagers(work.propertyId(),actor,work.id(),event,type,message);
     }
     public List<NotificationResponse> list(AuthenticatedUser actor, boolean unreadOnly, int limit, int offset) {
         Pagination.validate(limit, offset);
