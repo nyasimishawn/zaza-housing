@@ -178,3 +178,8 @@ Private images and approved public galleries are documented in `docs/property-im
 ## Enquiries, viewings and conversations
 
 `docs/enquiries-viewings-conversations.md` covers safe listing contact, prospect/organization inboxes, private lease/work conversations, unread cursors, muted previews, mutually confirmed viewing appointments, conflict-safe rescheduling, and scoped reported-message moderation. `api/enquiries-viewings-conversations.http` provides role-separated examples. V13 extends the existing notification/audit layers. Former agencies and providers lose conversation access when their relationship ends; administrators require an assigned case to read a reported message. Communication is persisted HTTP messaging with bounded polling; Flutter screens, attachments, WebSocket and external email/SMS/push delivery remain separate work.
+
+
+### Lease inspections and checkout
+
+Explicit inspection enrollment, immutable move-in/move-out revisions, private photographic evidence, meter/key handovers, password-confirmed sharing/tenant acceptance, disputes and baseline comparisons now connect to activation, completion and financial/maintenance release checks. See [workflow guide](docs/lease-inspections-checkout.md) and [HTTP examples](api/lease-inspections-checkout.http).
