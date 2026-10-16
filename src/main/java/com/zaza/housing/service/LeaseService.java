@@ -53,10 +53,36 @@ public class LeaseService {
     private final Clock clock;
     private final BillingGuardService billingGuard;
     private final WorkCheckoutGuard workGuard;
-    public LeaseService(LeaseRepository leases,RentalApplicationRepository applications,PropertyRepository inventory,AuthRepository users,
-            PropertyService properties,LeaseAccessService access,LeaseReadService reads,LeaseSignatureService signing,LeaseActivityService activity,AuditService audit,Clock clock,BillingGuardService billingGuard,WorkCheckoutGuard workGuard) {
-        this.leases=leases; this.applications=applications; this.inventory=inventory; this.users=users; this.properties=properties;
-        this.access=access; this.reads=reads; this.signing=signing; this.activity=activity; this.audit=audit; this.clock=clock; this.billingGuard=billingGuard; this.workGuard=workGuard;
+    private final InspectionGuardService inspectionGuard;
+    public LeaseService(
+            LeaseRepository leases,
+            RentalApplicationRepository applications,
+            PropertyRepository inventory,
+            AuthRepository users,
+            PropertyService properties,
+            LeaseAccessService access,
+            LeaseReadService reads,
+            LeaseSignatureService signing,
+            LeaseActivityService activity,
+            AuditService audit,
+            Clock clock,
+            BillingGuardService billingGuard,
+            WorkCheckoutGuard workGuard,
+            InspectionGuardService inspectionGuard) {
+        this.leases = leases;
+        this.applications = applications;
+        this.inventory = inventory;
+        this.users = users;
+        this.properties = properties;
+        this.access = access;
+        this.reads = reads;
+        this.signing = signing;
+        this.activity = activity;
+        this.audit = audit;
+        this.clock = clock;
+        this.billingGuard = billingGuard;
+        this.workGuard = workGuard;
+        this.inspectionGuard = inspectionGuard;
     }
     @Transactional
     public LeaseResponse create(AuthenticatedUser actor,UUID organization,UUID propertyId,CreateLeaseRequest request) {
@@ -163,6 +189,7 @@ public class LeaseService {
         if(today().isBefore(revision.terms().startDate())||!today().isBefore(end)) throw LeaseAccessService.conflict("Activation must occur during the agreed lease term.");
         var unit=inventory.unit(property,previous.unitId()).orElseThrow();
         billingGuard.activation(id);
+        inspectionGuard.activation(id);
         leases.activate(previous);
         auditUnit(actor,organization,previous,unit,"LEASE_UNIT_OCCUPIED");
         return recorded(actor,organization,previous,LeaseParty.LESSOR,LeaseEventType.ACTIVATED,"Move-in confirmed and lease activated.",true,true);
@@ -177,6 +204,7 @@ public class LeaseService {
         if(today().isBefore(effectiveEnd(previous,revision))) throw LeaseAccessService.conflict("The agreed end date has not been reached.");
         if(ending.isPresent()&&ending.get().details().status()==LeaseTerminationStatus.PENDING) leases.terminationStatus(ending.get().details().id(),LeaseTerminationStatus.CANCELLED);
         var unit=inventory.unit(property,previous.unitId()).orElseThrow();
+        inspectionGuard.checkout(previous);
         leases.complete(previous,terminated);
         auditUnit(actor,organization,previous,unit,"LEASE_UNIT_CHECKOUT_PENDING");
         var current=find(id);
@@ -190,6 +218,7 @@ public class LeaseService {
         if(!Boolean.TRUE.equals(request.vacancyConfirmed())) throw invalid("Confirm that the unit is vacant before releasing it.");
         if(previous.unitReleasedAt()!=null) throw LeaseAccessService.conflict("This unit has already been released.");
         var unit=inventory.unit(property,previous.unitId()).orElseThrow();
+        inspectionGuard.checkout(previous);
         workGuard.check(id);
         billingGuard.checkout(id);
         leases.releaseUnit(previous);

@@ -1,0 +1,92 @@
+@base = http://127.0.0.1:8080/api/v1
+@ownerToken = REPLACE_LOCALLY
+@tenantToken = REPLACE_LOCALLY
+@organizationId = REPLACE
+@propertyId = REPLACE
+@leaseId = REPLACE
+@inspectionId = REPLACE
+@revisionId = REPLACE
+@documentHash = REPLACE_FROM_REPORT
+@manager = {{base}}/organizations/{{organizationId}}/properties/{{propertyId}}/leases/{{leaseId}}
+@tenant = {{base}}/me/leases/{{leaseId}}
+
+### Explicitly enable tracking after both parties sign (use a fresh request UUID)
+POST {{manager}}/inspections/enable
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"11111111-1111-4111-8111-111111111111","leaseVersion":0}
+
+### Create the move-in draft. Replace observedAt with the actual UTC observation time.
+POST {{manager}}/inspections
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "requestId":"22222222-2222-4222-8222-222222222222",
+  "kind":"MOVE_IN",
+  "details":{
+    "title":"Move-in condition and key handover",
+    "observedAt":"2026-10-16T09:00:00Z",
+    "summary":"Inspected with the tenant before possession.",
+    "items":[{"key":"living-room-wall","area":"Living room","name":"Painted wall","condition":"GOOD","quantity":1,"notes":"Existing small mark photographed.","estimatedCharge":null}],
+    "meters":[{"key":"water","label":"Water meter","serialNumber":"EXAMPLE-001","reading":123.456,"unit":"m3"}],
+    "keys":[{"key":"front-door","label":"Front door keys","expectedCount":2,"transferredCount":2}],
+    "evidenceIds":[]
+  }
+}
+
+### Inspect current report/version and download exact revision before attesting
+GET {{manager}}/inspections/{{inspectionId}}
+Authorization: Bearer {{ownerToken}}
+
+### Exact JSON document (audited, private attachment)
+GET {{manager}}/inspections/{{inspectionId}}/revisions/{{revisionId}}/document
+Authorization: Bearer {{ownerToken}}
+
+### Share reviewed revision. Enter password locally; never commit request secrets.
+POST {{manager}}/inspections/{{inspectionId}}/share
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{"requestId":"33333333-3333-4333-8333-333333333333","version":0,"revisionId":"{{revisionId}}","documentHash":"{{documentHash}}","consent":true,"vacancyConfirmed":false,"password":"ENTER_LOCALLY","reason":"The report accurately records my observations and handover."}
+
+### Tenant reviews only shared content
+GET {{tenant}}/inspections/{{inspectionId}}
+Authorization: Bearer {{tenantToken}}
+
+### Tenant accepts this exact revision (use current report version)
+POST {{tenant}}/inspections/{{inspectionId}}/accept
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"requestId":"44444444-4444-4444-8444-444444444444","version":1,"revisionId":"{{revisionId}}","documentHash":"{{documentHash}}","consent":true,"vacancyConfirmed":false,"password":"ENTER_LOCALLY","reason":"I reviewed condition, readings, actual key counts and evidence."}
+
+### Alternative: tenant disputes before acceptance; manager must revise and reshare
+POST {{tenant}}/inspections/{{inspectionId}}/dispute
+Authorization: Bearer {{tenantToken}}
+Content-Type: application/json
+
+{"requestId":"55555555-5555-4555-8555-555555555555","version":1,"revisionId":"{{revisionId}}","reason":"Please record the existing wall mark.","itemKeys":["living-room-wall"]}
+
+### Attestation receipts and history
+GET {{tenant}}/inspections/{{inspectionId}}/attestations?limit=50&offset=0
+Authorization: Bearer {{tenantToken}}
+
+### History
+GET {{tenant}}/inspections/{{inspectionId}}/history?limit=50&offset=0
+Authorization: Bearer {{tenantToken}}
+
+### Baseline comparison once a MOVE_OUT report is shared
+GET {{tenant}}/inspections/comparison
+Authorization: Bearer {{tenantToken}}
+
+### Checkout shows inspection, billing, maintenance and lease-state blockers
+GET {{manager}}/checkout
+Authorization: Bearer {{ownerToken}}
+
+### For MOVE_OUT: create near the agreed end, record final readings and actual returned
+### key counts, set vacancyConfirmed=true on BOTH share and tenant acceptance.
+### Use existing /complete, billing/deposit reconciliation and /release-unit afterward.
+### Upload photos using multipart file/requestId/version/caption to
+### {lease}/inspections/{inspectionId}/evidence, then select evidenceIds in a new revision.

@@ -87,6 +87,13 @@ class AuthRateLimitFilterTests {
     assertThat(attempt(filter, "/api/v1/admin/conversation-reports/r/resolve")).isEqualTo(429);
   }
 
+  @Test
+  void inspectionAttestationsSharePasswordConfirmationLimits() throws Exception {
+    var filter=new AuthRateLimitFilter(Clock.systemUTC(),1);
+    assertThat(attempt(filter,"/api/v1/organizations/o/properties/p/leases/l/inspections/i/share")).isEqualTo(204);
+    assertThat(attempt(filter,"/api/v1/me/leases/l/inspections/i/accept")).isEqualTo(429);
+  }
+
     private int attempt(AuthRateLimitFilter filter,String path) throws Exception {
         var request = new MockHttpServletRequest("POST", path);
         request.setServletPath(path);
