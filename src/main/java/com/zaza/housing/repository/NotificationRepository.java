@@ -30,7 +30,9 @@ public class NotificationRepository {
               rs.getObject("service_payment_account_id", UUID.class),
               rs.getString("service_payment_url"),
               rs.getObject("conversation_id", UUID.class),
-              rs.getString("conversation_url"));
+              rs.getString("conversation_url"),
+              rs.getObject("vault_event_id", UUID.class),
+              rs.getString("vault_url"));
     private final JdbcTemplate jdbc;
     public NotificationRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
     public void append(UUID user, UUID application, UUID event, ApplicationEventType type, String message) {
@@ -260,5 +262,10 @@ public class NotificationRepository {
             id)
         .stream()
         .findFirst();
+    }
+
+    public void vault(UUID user,UUID actor,UUID event,String type,String url) {
+        if(user.equals(actor)) return;
+        jdbc.update("INSERT INTO in_app_notifications(id,user_id,vault_event_id,type,message,vault_url) VALUES (?,?,?,?,?,?) ON CONFLICT(user_id,vault_event_id) DO NOTHING",UUID.randomUUID(),user,event,type,"A private document or verification workflow was updated. Open it for details.",url);
     }
 }

@@ -183,3 +183,8 @@ Private images and approved public galleries are documented in `docs/property-im
 ### Lease inspections and checkout
 
 Explicit inspection enrollment, immutable move-in/move-out revisions, private photographic evidence, meter/key handovers, password-confirmed sharing/tenant acceptance, disputes and baseline comparisons now connect to activation, completion and financial/maintenance release checks. See [workflow guide](docs/lease-inspections-checkout.md) and [HTTP examples](api/lease-inspections-checkout.http).
+
+
+### Encrypted documents and verification
+
+Personal/organization scan vaults now support authenticated encryption, immutable versions, retention and retryable purge. Applicants can explicitly share expiring/revocable versions with current property reviewers. Identity/business cases use frozen submissions and independently assigned manual reviewers, with current method/expiry reflected on provider profiles. See [workflow and key setup](docs/documents-verification.md) and [HTTP examples](api/documents-verification.http). Supported uploads are JPEG/PNG scans; external KYC, PDF sanitization and frontend screens remain separate work.

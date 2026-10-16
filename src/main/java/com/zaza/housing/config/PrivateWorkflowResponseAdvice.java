@@ -3,6 +3,7 @@ package com.zaza.housing.config;
 import com.zaza.housing.controller.ApplicationReviewController;
 import com.zaza.housing.controller.ConversationController;
 import com.zaza.housing.controller.ConversationModerationController;
+import com.zaza.housing.controller.DocumentController;
 import com.zaza.housing.controller.LeaseBillingController;
 import com.zaza.housing.controller.LeaseManagementController;
 import com.zaza.housing.controller.MaintenanceController;
@@ -17,6 +18,8 @@ import com.zaza.housing.controller.TenantBillingController;
 import com.zaza.housing.controller.TenantLeaseController;
 import com.zaza.housing.controller.TenantProfileController;
 import com.zaza.housing.controller.TenantWorkRequestController;
+import com.zaza.housing.controller.VerificationAdminController;
+import com.zaza.housing.controller.VerificationController;
 import com.zaza.housing.controller.ViewingController;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.MediaType;
@@ -28,6 +31,9 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
 
 @RestControllerAdvice(
     assignableTypes = {
+      DocumentController.class,
+      VerificationController.class,
+      VerificationAdminController.class,
       TenantProfileController.class,
       TenantApplicationController.class,
       ApplicationReviewController.class,
@@ -48,10 +54,21 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
       ConversationModerationController.class
     })
 public class PrivateWorkflowResponseAdvice implements ResponseBodyAdvice<Object> {
-    @Override public boolean supports(MethodParameter method, Class<? extends HttpMessageConverter<?>> converter) { return true; }
-    @Override public Object beforeBodyWrite(Object body, MethodParameter method, MediaType contentType,
-            Class<? extends HttpMessageConverter<?>> converter, ServerHttpRequest request, ServerHttpResponse response) {
-        response.getHeaders().setCacheControl("no-store");
-        return body;
-    }
+  @Override
+  public boolean supports(
+      MethodParameter method, Class<? extends HttpMessageConverter<?>> converter) {
+    return true;
+  }
+
+  @Override
+  public Object beforeBodyWrite(
+      Object body,
+      MethodParameter method,
+      MediaType contentType,
+      Class<? extends HttpMessageConverter<?>> converter,
+      ServerHttpRequest request,
+      ServerHttpResponse response) {
+    response.getHeaders().setCacheControl("no-store");
+    return body;
+  }
 }

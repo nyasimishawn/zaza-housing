@@ -47,3 +47,5 @@ http-client.private.env.json
 
 .local-videos/
 .tools/
+
+.local-documents/

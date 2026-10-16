@@ -8,6 +8,8 @@ import com.zaza.housing.dto.ServiceReviewResponse;
 import com.zaza.housing.enums.ProviderStatus;
 import com.zaza.housing.enums.ServiceCategory;
 import com.zaza.housing.enums.ServiceOfferStatus;
+import java.sql.Timestamp;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -21,11 +23,25 @@ import tools.jackson.databind.ObjectMapper;
 public class ServiceProviderRepository {
   private final JdbcTemplate jdbc;
   private final ObjectMapper json;
+  private final Clock clock;
   private final RowMapper<ServiceOfferResponse> offer;
   private final RowMapper<ProviderProfileResponse> profileMapper;
   private static final String PROFILES =
       """
-      SELECT p.*,rating.review_count,rating.average_rating FROM service_provider_profiles p
+      SELECT p.*,rating.review_count,rating.average_rating,
+        CASE WHEN verification.valid_until IS NOT NULL THEN 'VERIFIED' ELSE 'NOT_VERIFIED' END verification_status,
+        CASE WHEN verification.valid_until IS NOT NULL THEN 'MANUAL_DOCUMENT_REVIEW' END verification_method,
+        verification.valid_until verification_valid_until
+      FROM service_provider_profiles p
+      CROSS JOIN LATERAL (
+        SELECT max(v.valid_until) valid_until FROM verification_cases v
+        JOIN verification_submissions s ON s.case_id=v.id AND s.id=v.shared_submission_id
+        JOIN organizations organization ON organization.id=v.organization_id
+        WHERE v.organization_id=p.organization_id AND v.status='VERIFIED' AND v.valid_until>?
+        AND lower(btrim(organization.name))=lower(btrim(s.details->>'claimedName'))
+        AND NOT EXISTS(SELECT 1 FROM verification_submission_documents evidence JOIN vault_documents d ON d.id=evidence.document_id
+          WHERE evidence.case_id=v.id AND evidence.submission_id=v.shared_submission_id AND d.status<>'ACTIVE')
+      ) verification
       CROSS JOIN LATERAL (
         SELECT count(*) AS review_count,round(avg(r.rating),2) AS average_rating FROM service_reviews r
         JOIN work_requests w ON w.id=r.work_id AND w.status='COMPLETED' AND w.assignment_id=r.assignment_id
@@ -33,7 +49,8 @@ public class ServiceProviderRepository {
       ) rating
       """;
 
-  public ServiceProviderRepository(JdbcTemplate jdbc, ObjectMapper json) {
+  public ServiceProviderRepository(JdbcTemplate jdbc, ObjectMapper json, Clock clock) {
+    this.clock = clock;
     this.jdbc = jdbc;
     this.json = json;
     profileMapper =
@@ -43,9 +60,13 @@ public class ServiceProviderRepository {
                 json.readValue(r.getString("details"), ProviderProfileDetails.class),
                 ProviderStatus.valueOf(r.getString("status")),
                 r.getLong("version"),
-                "NOT_VERIFIED",
+                r.getString("verification_status"),
                 r.getLong("review_count"),
-                r.getBigDecimal("average_rating"));
+                r.getBigDecimal("average_rating"),
+                r.getString("verification_method"),
+                r.getTimestamp("verification_valid_until") == null
+                    ? null
+                    : r.getTimestamp("verification_valid_until").toInstant());
     offer =
         (r, n) ->
             new ServiceOfferResponse(
@@ -57,7 +78,13 @@ public class ServiceProviderRepository {
   }
 
   public Optional<ProviderProfileResponse> profile(UUID id) {
-    return jdbc.query(PROFILES + " WHERE p.organization_id=?", profileMapper, id).stream()
+    return jdbc
+        .query(
+            PROFILES + " WHERE p.organization_id=?",
+            profileMapper,
+            Timestamp.from(clock.instant()),
+            id)
+        .stream()
         .findFirst();
   }
 
@@ -143,6 +170,7 @@ public class ServiceProviderRepository {
                 + " EXISTS(SELECT 1 FROM service_offers o WHERE o.provider_id=p.organization_id AND"
                 + " o.status='ACTIVE'");
     var args = new ArrayList<Object>();
+    args.add(Timestamp.from(clock.instant()));
     if (category != null) {
       sql.append(" AND o.category=?");
       args.add(category.name());
