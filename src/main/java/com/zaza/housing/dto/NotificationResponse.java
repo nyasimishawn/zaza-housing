@@ -18,4 +18,6 @@ public record NotificationResponse(
     UUID servicePaymentAccountId,
     String servicePaymentUrl,
     UUID conversationId,
-    String conversationUrl) {}
+    String conversationUrl,
+    UUID vaultEventId,
+    String vaultUrl) {}

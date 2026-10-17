@@ -43,4 +43,6 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// Release embedded servers, HTTP clients, and cached Spring contexts between classes.
+	forkEvery = 1
 }

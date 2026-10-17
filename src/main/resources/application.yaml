@@ -5,6 +5,7 @@ spring:
     name: zaza
   servlet:
     multipart:
+      file-size-threshold: 12MB
       max-file-size: 50MB
       max-request-size: 51MB
   datasource:
@@ -36,6 +37,11 @@ management:
     health:
       show-details: never
 zaza:
+  documents:
+    directory: ${ZAZA_DOCUMENT_DIRECTORY:.local-documents}
+    keys: ${ZAZA_DOCUMENT_KEYS:}
+    active-key-id: ${ZAZA_DOCUMENT_ACTIVE_KEY_ID:}
+    uploads-per-hour: ${ZAZA_DOCUMENT_UPLOADS_PER_HOUR:20}
   communication:
     messages-per-minute: ${ZAZA_MESSAGES_PER_MINUTE:30}
     enquiries-per-hour: ${ZAZA_ENQUIRIES_PER_HOUR:20}

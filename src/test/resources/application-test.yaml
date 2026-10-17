@@ -5,6 +5,9 @@ spring:
     password: ${ZAZA_TEST_DB_PASSWORD:${ZAZA_DB_PASSWORD:}}
     hikari:
       schema: zaza_foundation_test
+      # Cached test application contexts must not exhaust local PostgreSQL slots.
+      maximum-pool-size: 4
+      minimum-idle: 1
   flyway:
     default-schema: zaza_foundation_test
     schemas: zaza_foundation_test

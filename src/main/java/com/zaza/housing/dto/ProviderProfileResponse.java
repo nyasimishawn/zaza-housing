@@ -2,6 +2,7 @@ package com.zaza.housing.dto;
 
 import com.zaza.housing.enums.ProviderStatus;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
 public record ProviderProfileResponse(
@@ -11,4 +12,6 @@ public record ProviderProfileResponse(
     long version,
     String verificationStatus,
     long reviewCount,
-    BigDecimal averageRating) {}
+    BigDecimal averageRating,
+    String verificationMethod,
+    Instant verificationValidUntil) {}
