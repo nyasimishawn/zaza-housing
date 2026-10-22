@@ -38,7 +38,7 @@ From the project folder in PowerShell:
 .\scripts\start-local.ps1
 ```
 
-Copy `.env.example` to `.env` and fill in `ZAZA_DB_PASSWORD`, or supply it through your environment/secret manager. The backend imports `.env` as a Java properties file: use `KEY=value` without surrounding quotes; literal backslashes must be escaped as `\\`. Keep `.env` out of Git. The startup script prompts without displaying or saving the password if neither source provides it. Configuration variables:
+Copy `.env.example` to `.env` and fill in `ZAZA_DB_PASSWORD`, or supply it through your environment/secret manager. The backend imports `.env` as a Java properties file: use `KEY=value` without surrounding quotes; literal backslashes must be escaped as `\\`. Keep `.env` out of Git. The startup script prompts without displaying or saving the password if neither source provides it. Missing or whitespace-only database passwords stop startup with a clear configuration error before any database connection; there is no built-in password fallback. Tests may supply `ZAZA_TEST_DB_PASSWORD` instead. Configuration variables:
 
 | Variable | Default |
 | --- | --- |
