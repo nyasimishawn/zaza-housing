@@ -18,5 +18,6 @@ public record AgencyLead(
     UUID leaseId,
     long version,
     Instant wonAt,
+    UUID wonAgentId,
     Instant createdAt,
     Instant updatedAt) {}

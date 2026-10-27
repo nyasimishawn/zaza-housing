@@ -502,9 +502,12 @@ public class ConversationRepository {
         """
         SELECT DISTINCT u.id FROM conversations c JOIN properties p ON p.id=c.property_id LEFT JOIN work_requests w ON w.id=c.work_id
         JOIN app_users u ON u.active AND ((u.id=c.customer_id AND c.channel='SHARED') OR EXISTS(
-        SELECT 1 FROM organization_memberships m WHERE m.user_id=u.id AND m.role IN ('OWNER','ADMIN') AND
+        SELECT 1 FROM organization_memberships m WHERE m.user_id=u.id AND ((m.role IN ('OWNER','ADMIN') AND
         ((agency_management_access(m.organization_id,p.id) AND (w.id IS NULL OR w.kind='MAINTENANCE'))
-        OR(m.organization_id=c.provider_id AND w.assignment_id=c.assignment_id AND w.provider_id=c.provider_id AND w.status<>'ASSIGNED'))))
+        OR(m.organization_id=c.provider_id AND w.assignment_id=c.assignment_id AND w.provider_id=c.provider_id AND w.status<>'ASSIGNED')))
+        OR (c.kind='ENQUIRY' AND c.channel='SHARED' AND EXISTS(SELECT 1 FROM agency_leads al JOIN agency_property_assignments aa
+        ON aa.agency_id=al.agency_id AND aa.property_id=al.property_id AND aa.agent_id=al.assigned_to
+        WHERE al.agency_id=m.organization_id AND al.enquiry_id=c.id AND al.assigned_to=u.id AND aa.active AND agency_property_access(al.agency_id,al.property_id))))))
         WHERE c.id=? AND NOT EXISTS(SELECT 1 FROM conversation_preferences pref WHERE pref.conversation_id=c.id AND pref.user_id=u.id AND pref.muted)
         """,
         (r, n) -> id(r, "id"),

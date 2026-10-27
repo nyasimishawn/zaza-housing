@@ -10,4 +10,6 @@ public record AgencyPropertyAssignment(
     UUID agentId,
     boolean active,
     long version,
-    Instant updatedAt) {}
+    Instant updatedAt,
+    String propertyName,
+    String agentName) {}

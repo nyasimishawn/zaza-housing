@@ -903,6 +903,8 @@ class CommunicationTests {
     var lead=node(call("POST",base+"/leads",Map.of("requestId",UUID.randomUUID(),"clientId",client.get("id").asText(),"title","Enquiry follow-up","agentId",agent.id,"propertyId",c.i.property,"listingId",c.i.listing,"enquiryId",c.id),manager,200));
     assertThat(current(c,agent).get("role").asText()).isEqualTo("MANAGER");
     send(c,agent,"I can assist with your enquiry.");
+    send(c,c.customer,"Please help arrange the viewing.");
+    assertThat(jdbc.queryForObject("SELECT count(*) FROM in_app_notifications WHERE conversation_id=? AND user_id=?",Long.class,UUID.fromString(c.id),agent.id)).isPositive();
     call("POST",base+"/leads/"+lead.get("id").asText()+"/assign",Map.of("requestId",UUID.randomUUID(),"version",0,"message","Return lead to the agency queue."),manager,200);
     call("GET",c.base(),null,agent,404);
     call("GET",base+"/clients/"+client.get("id").asText(),null,agent,404);
