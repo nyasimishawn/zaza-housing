@@ -52,11 +52,18 @@ public class VerificationReadService {
   }
 
   public List<VerificationResponse> list(AuthenticatedUser actor, UUID org, int limit, int offset) {
+    return list(actor, org, null, limit, offset);
+  }
+
+  public List<VerificationResponse> list(
+      AuthenticatedUser actor, UUID org, UUID property, int limit, int offset) {
     owners.owner(actor, org, false);
     Pagination.validate(limit, offset);
-    return cases.list(actor.id(), org, limit, offset).stream()
-        .map(c -> response(c, false))
-        .toList();
+    if (property != null) access.property(org, property, false);
+    return (property == null
+            ? cases.list(actor.id(), org, limit, offset)
+            : cases.propertyCases(org, property, limit, offset))
+        .stream().map(c -> response(c, false)).toList();
   }
 
   public VerificationResponse response(VerificationCase c, boolean reviewer) {
@@ -72,7 +79,8 @@ public class VerificationReadService {
         c.resolution(),
         c.assignedTo() != null,
         c.createdAt(),
-        c.updatedAt());
+        c.updatedAt(),
+        c.property());
   }
 
   public VerificationSubmissionResponse response(VerificationSubmission s) {

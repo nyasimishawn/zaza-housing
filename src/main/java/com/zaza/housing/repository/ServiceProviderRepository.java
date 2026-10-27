@@ -37,7 +37,7 @@ public class ServiceProviderRepository {
         SELECT max(v.valid_until) valid_until FROM verification_cases v
         JOIN verification_submissions s ON s.case_id=v.id AND s.id=v.shared_submission_id
         JOIN organizations organization ON organization.id=v.organization_id
-        WHERE v.organization_id=p.organization_id AND v.status='VERIFIED' AND v.valid_until>?
+        WHERE v.organization_id=p.organization_id AND v.kind='BUSINESS' AND v.status='VERIFIED' AND v.valid_until>?
         AND lower(btrim(organization.name))=lower(btrim(s.details->>'claimedName'))
         AND NOT EXISTS(SELECT 1 FROM verification_submission_documents evidence JOIN vault_documents d ON d.id=evidence.document_id
           WHERE evidence.case_id=v.id AND evidence.submission_id=v.shared_submission_id AND d.status<>'ACTIVE')

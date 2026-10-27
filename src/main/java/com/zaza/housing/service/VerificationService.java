@@ -53,12 +53,17 @@ public class VerificationService {
       AuthenticatedUser actor, UUID org, CreateVerificationRequest request) {
     owners.owner(actor, org, true);
     UUID user = org == null ? actor.id() : null;
+    var property =
+        request.propertyId() == null ? null : access.property(org, request.propertyId(), true);
     String scope = DocumentAccessService.scope(user, org);
     var replay =
         activity.replay(actor, scope, request.requestId(), "VERIFICATION_CREATED", request);
     if (replay.isPresent())
       return reads.response(access.own(actor, org, replay.get(), false), false);
-    var active = cases.active(user, org);
+    var active =
+        property == null
+            ? cases.active(user, org)
+            : cases.activeProperty(org, property.propertyId());
     if (active.isPresent()) {
       var old = active.get();
       if (old.status() == VerificationStatus.VERIFIED
@@ -82,9 +87,20 @@ public class VerificationService {
         throw DocumentAccessService.conflict(
             "A current verification case already exists for this subject.");
     }
-    var details = access.details(user, org, request.details());
+    var details =
+        access.details(
+            user,
+            org,
+            request.details(),
+            property == null
+                ? org == null
+                    ? com.zaza.housing.enums.VerificationKind.IDENTITY
+                    : com.zaza.housing.enums.VerificationKind.BUSINESS
+                : com.zaza.housing.enums.VerificationKind.PROPERTY_OWNERSHIP);
+    if (property != null && !property.countryCode().equals(details.countryCode()))
+      throw DocumentAccessService.invalid("The claim country must match the property.");
     UUID id = UUID.randomUUID(), submission = UUID.randomUUID();
-    cases.create(id, user, org, submission, actor.id(), clock.instant());
+    cases.create(id, user, org, submission, actor.id(), clock.instant(), property);
     addSubmission(actor, id, submission, 1, details);
     var current = access.find(id);
     activity.verification(
@@ -110,7 +126,7 @@ public class VerificationService {
         .isPresent()) return reads.response(c, false);
     access.version(c, request.version());
     editable(c);
-    var details = access.details(c.ownerUserId(), org, request.details());
+    var details = checkedDetails(c, request.details());
     var old = cases.submission(id, c.currentSubmissionId());
     if (old.number() >= 20)
       throw DocumentAccessService.conflict("A verification case permits at most 20 submissions.");
@@ -149,7 +165,7 @@ public class VerificationService {
         || c.currentSubmissionId().equals(c.sharedSubmissionId()))
       throw DocumentAccessService.conflict("Review a new draft submission before submitting.");
     var submission = cases.submission(id, c.currentSubmissionId());
-    access.details(c.ownerUserId(), org, submission.details());
+    checkedDetails(c, submission.details());
     cases.submit(id, submission.id(), actor.id(), clock.instant());
     var current = access.find(id);
     activity.verification(
@@ -201,6 +217,17 @@ public class VerificationService {
         && c.status() != VerificationStatus.CHANGES_REQUESTED)
       throw DocumentAccessService.conflict(
           "Only a draft or changes-requested verification case can be revised or submitted.");
+  }
+
+  private VerificationDetails checkedDetails(VerificationCase c, VerificationDetails details) {
+    if (c.propertyId() != null && !cases.currentBusinessName(c))
+      throw DocumentAccessService.conflict(
+          "The property identity changed. Withdraw this claim and prepare a new claim for the"
+              + " current property.");
+    var result = access.details(c.ownerUserId(), c.organizationId(), details, c.kind());
+    if (c.property() != null && !c.property().countryCode().equals(result.countryCode()))
+      throw DocumentAccessService.invalid("The claim country must match the property.");
+    return result;
   }
 
   private void addSubmission(
