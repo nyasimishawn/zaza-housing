@@ -14,7 +14,7 @@ CREATE OR REPLACE FUNCTION agency_management_access(agency UUID, property UUID) 
  SELECT EXISTS(SELECT 1 FROM properties p WHERE p.id=property AND
  (agency=p.owner_organization_id OR (agency=p.manager_organization_id AND
  (p.management_mandate_id IS NULL OR EXISTS(SELECT 1 FROM agency_mandates m WHERE m.id=p.management_mandate_id
- AND m.property_id=p.id AND m.agency_id=agency AND m.owner_id=p.owner_organization_id AND m.status='ACTIVE' AND m.starts_at<=now() AND m.ends_at>now())))))
+ AND m.property_id=p.id AND m.agency_id=agency AND m.owner_id=p.owner_organization_id AND m.status='ACTIVE' AND m.starts_at<=statement_timestamp() AND m.ends_at>statement_timestamp())))))
 $$;
 CREATE OR REPLACE FUNCTION revoke_agency_property_assignments() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN

@@ -56,8 +56,8 @@ public class AgencyMandateRepository {
   }
 
   private static final String SELECT =
-      "SELECT m.*,o.name owner_name,a.name agency_name,(m.status='ACTIVE' AND m.starts_at<=now()"
-          + " AND m.ends_at>now() AND EXISTS(SELECT 1 FROM properties p WHERE p.id=m.property_id"
+      "SELECT m.*,o.name owner_name,a.name agency_name,(m.status='ACTIVE' AND m.starts_at<=statement_timestamp()"
+          + " AND m.ends_at>statement_timestamp() AND EXISTS(SELECT 1 FROM properties p WHERE p.id=m.property_id"
           + " AND p.management_mandate_id=m.id AND p.manager_organization_id=m.agency_id))"
           + " effective FROM agency_mandates m JOIN organizations o ON o.id=m.owner_id JOIN"
           + " organizations a ON a.id=m.agency_id";
@@ -165,7 +165,7 @@ public class AgencyMandateRepository {
         jdbc.queryForObject(
             "SELECT manager_organization_id IS NULL OR (management_mandate_id IS NOT NULL AND"
                 + " EXISTS(SELECT 1 FROM agency_mandates m WHERE m.id=management_mandate_id AND"
-                + " (m.status<>'ACTIVE' OR m.ends_at<=now()))) FROM properties WHERE id=?",
+                + " (m.status<>'ACTIVE' OR m.ends_at<=statement_timestamp()))) FROM properties WHERE id=?",
             Boolean.class,
             property));
   }
