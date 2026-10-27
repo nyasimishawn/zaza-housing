@@ -29,7 +29,7 @@ public class ListingRepository {
     private static final String VISIBLE = """
             l.status = 'PUBLISHED' AND p.status = 'ACTIVE' AND u.status = 'ACTIVE' AND u.availability = 'AVAILABLE'
             AND l.source_property_version = p.version AND l.source_unit_version = u.version
-            AND (l.publisher_organization_id = p.owner_organization_id OR l.publisher_organization_id = p.manager_organization_id)
+            AND agency_management_access(l.publisher_organization_id,p.id)
             AND NOT EXISTS (SELECT 1 FROM listing_image_references r LEFT JOIN property_images i
                 ON i.id = r.image_id AND i.property_id = r.property_id WHERE r.listing_id = l.id
                 AND (i.id IS NULL OR i.status <> 'ACTIVE' OR i.version <> r.image_version))

@@ -438,7 +438,7 @@ public class DocumentRepository {
     return jdbc.query(
         """
         SELECT DISTINCT ON(m.user_id) m.user_id,m.organization_id FROM properties p
-        JOIN organization_memberships m ON (m.organization_id=p.owner_organization_id OR m.organization_id=p.manager_organization_id)
+        JOIN organization_memberships m ON agency_management_access(m.organization_id,p.id)
         JOIN app_users u ON u.id=m.user_id AND u.active WHERE p.id=? AND m.role IN ('OWNER','ADMIN')
         ORDER BY m.user_id,CASE WHEN m.organization_id=p.owner_organization_id THEN 0 ELSE 1 END
         """,
