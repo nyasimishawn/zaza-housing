@@ -43,13 +43,14 @@ public class PropertyService {
     private final AuditService audit;
     private final RentalApplicationRepository applications;
     private final LeaseRepository leases;
+    private final com.zaza.housing.repository.AgencyRepository agency;
 
     public PropertyService(PropertyRepository properties, OrganizationRepository memberships,
-            OrganizationService organizations, AuditService audit, RentalApplicationRepository applications, LeaseRepository leases) {
+            OrganizationService organizations, AuditService audit, RentalApplicationRepository applications, LeaseRepository leases, com.zaza.housing.repository.AgencyRepository agency) {
         this.properties = properties;
         this.memberships = memberships;
         this.organizations = organizations;
-        this.audit = audit; this.applications = applications; this.leases=leases;
+        this.audit = audit; this.applications = applications; this.leases=leases;this.agency=agency;
     }
 
     @Transactional
@@ -69,12 +70,12 @@ public class PropertyService {
 
     public List<Property> list(AuthenticatedUser actor, UUID organizationId, PropertyStatus status,
             PropertyType type, String city, int limit, int offset) {
-        organizations.get(actor, organizationId);
+        var organization=organizations.get(actor, organizationId);
         Pagination.validate(limit, offset);
         if (city != null && (city.isBlank() || city.length() > 100)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "City must contain 1-100 characters.");
         }
-        return properties.list(organizationId, status, type, city, limit, offset);
+        return properties.listScoped(organizationId,organization.type()==OrganizationType.AGENCY && organization.role()==MembershipRole.MEMBER ? actor.id():null,status,type,city,limit,offset);
     }
 
     public Property get(AuthenticatedUser actor, UUID organizationId, UUID id) {
@@ -189,6 +190,7 @@ public class PropertyService {
         // Delegations can be revoked while a writer waits for the property lock. The scoped query
         // rechecks its predicate against the latest row, so revoked agencies cannot finish a new mutation.
         if (write) requireManager(organization);
+        if(!write && organization.type()==OrganizationType.AGENCY && organization.role()==MembershipRole.MEMBER && !agency.assigned(organizationId,id,actor.id()))throw new ApiException(HttpStatus.NOT_FOUND,"Property not found.");
         return result;
     }
 

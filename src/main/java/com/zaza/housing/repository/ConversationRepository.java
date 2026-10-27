@@ -37,7 +37,10 @@ public class ConversationRepository {
       """
       FROM conversations c JOIN properties p ON p.id=c.property_id LEFT JOIN work_requests w ON w.id=c.work_id
       LEFT JOIN LATERAL (SELECT m.organization_id FROM organization_memberships m
-      WHERE m.user_id=:actor AND m.role IN ('OWNER','ADMIN') AND m.organization_id IN (p.owner_organization_id,p.manager_organization_id)
+      WHERE m.user_id=:actor AND m.organization_id IN (p.owner_organization_id,p.manager_organization_id)
+      AND (m.role IN ('OWNER','ADMIN') OR (c.kind='ENQUIRY' AND c.channel='SHARED'
+      AND EXISTS(SELECT 1 FROM agency_leads al JOIN agency_property_assignments aa ON aa.agency_id=al.agency_id AND aa.property_id=al.property_id AND aa.agent_id=al.assigned_to
+        WHERE al.agency_id=m.organization_id AND al.enquiry_id=c.id AND al.assigned_to=:actor AND aa.active AND agency_property_access(al.agency_id,al.property_id))))
       ORDER BY CASE WHEN m.organization_id=p.owner_organization_id THEN 0 ELSE 1 END LIMIT 1) pm ON true
       LEFT JOIN LATERAL (SELECT m.organization_id FROM organization_memberships m WHERE m.user_id=:actor
       AND m.organization_id=c.provider_id AND m.role IN ('OWNER','ADMIN')) pv ON true
