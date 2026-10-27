@@ -77,6 +77,20 @@ class AgencyMandateTests {
       success("GET",agency.base()+"/"+p.get("id").asText(),null,agency.account.token,404);
       assertThat(node(success("GET",base(agency)+"/"+id,null,agency.account.token,200)).get("effective").asBoolean()).isFalse();
     }
+    @Test void writerWaitingOnPropertyCannotFinishAfterMandateExpires()throws Exception{
+      var owner=portfolio("LANDLORD");var agency=portfolio("AGENCY");var p=createProperty(owner,propertyDetails("Locked property"));String ownerPath=owner.base()+"/"+p.get("id").asText();p=node(success("PATCH",ownerPath+"/status",status(0,"ACTIVE"),owner.account.token,200));
+      var body=offer(p,agency);var expiry=java.time.Instant.now().plusSeconds(5);body.put("endsAt",expiry.toString());var m=node(success("POST",base(owner),body,owner.account.token,200));success("POST",base(agency)+"/"+m.get("id").asText()+"/accept",command(0),agency.account.token,200);
+      try(var connection=jdbc.getDataSource().getConnection()){
+        connection.setAutoCommit(false);
+        try(var statement=connection.prepareStatement("SELECT id FROM properties WHERE id=? FOR UPDATE")){
+          statement.setObject(1,UUID.fromString(p.get("id").asText()));statement.executeQuery().close();
+          var pending=async("PUT",agency.base()+"/"+p.get("id").asText(),edit(2,propertyDetails("Expired write")),agency.account.token);
+          Thread.sleep(300);assertThat(pending.isDone()).isFalse();
+          long wait=java.time.Duration.between(java.time.Instant.now(),expiry.plusMillis(200)).toMillis();if(wait>0)Thread.sleep(wait);
+          connection.commit();assertThat(pending.get(10,TimeUnit.SECONDS).statusCode()).isEqualTo(404);
+        }
+      }
+    }
     private Portfolio portfolio(String type) throws Exception {
         Account actor = account();
         JsonNode organization = node(success("POST", "/api/v1/organizations", Map.of("name", "Property test organization", "type", type), actor.token, 201));
