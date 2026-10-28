@@ -62,8 +62,12 @@ public class PropertyRepository {
     }
 
     public List<Property> list(UUID organization, PropertyStatus status, PropertyType type, String city, int limit, int offset) {
+        return listScoped(organization,null,status,type,city,limit,offset);
+    }
+    public List<Property> listScoped(UUID organization,UUID agent,PropertyStatus status,PropertyType type,String city,int limit,int offset) {
         StringBuilder sql = new StringBuilder("SELECT * FROM properties WHERE (owner_organization_id = ? OR manager_organization_id = ?)");
         List<Object> parameters = new ArrayList<>(List.of(organization, organization));
+        if(agent!=null){sql.append(" AND EXISTS(SELECT 1 FROM agency_property_assignments a WHERE a.agency_id=? AND a.property_id=properties.id AND a.agent_id=? AND a.active AND agency_property_access(a.agency_id,a.property_id))");parameters.add(organization);parameters.add(agent);}
         if (status == null) sql.append(" AND status <> 'ARCHIVED'");
         else { sql.append(" AND status = ?"); parameters.add(status.name()); }
         if (type != null) { sql.append(" AND type = ?"); parameters.add(type.name()); }

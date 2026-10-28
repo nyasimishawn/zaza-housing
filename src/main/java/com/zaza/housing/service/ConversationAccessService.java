@@ -30,8 +30,12 @@ public class ConversationAccessService {
             .access(actor.id(), id)
             .orElseThrow(() -> WorkAccessService.missing("Conversation not found."));
     if (lock) {
-      if (a.role() == ConversationRole.MANAGER)
-        properties.lockForManagement(actor, a.organizationId(), a.conversation().propertyId());
+      if (a.role() == ConversationRole.MANAGER) {
+        organizations.lock(a.organizationId());
+        var member=organizations.member(a.organizationId(),actor.id()).orElseThrow(()->WorkAccessService.missing("Conversation not found."));
+        if(member.role()==com.zaza.housing.enums.MembershipRole.MEMBER)properties.lockForApplication(a.conversation().propertyId());
+        else properties.lockForManagement(actor, a.organizationId(), a.conversation().propertyId());
+      }
       else {
         properties.lockForApplication(a.conversation().propertyId());
         if (a.role() == ConversationRole.PROVIDER) organizations.lock(a.organizationId());
