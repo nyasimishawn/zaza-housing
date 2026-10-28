@@ -77,7 +77,7 @@ class PropertyManagementTests {
     }
 
     @Test
-    void ordinaryMembersCanReadButOnlyOrganizationManagersCanWrite() throws Exception {
+    void unassignedMembersCannotReadInventoryAndOnlyManagersCanWrite() throws Exception {
         Portfolio owner = portfolio("LANDLORD");
         Account colleague = account();
         addMember(owner, colleague, "MEMBER");
@@ -85,8 +85,9 @@ class PropertyManagementTests {
         String path = owner.base() + "/" + property.get("id").asText();
         JsonNode unit = node(success("POST", path + "/units", unitDetails("1"), owner.account.token, 201));
         String unitPath = path + "/units/" + unit.get("id").asText();
-        success("GET", path, null, colleague.token, 200);
-        success("GET", unitPath, null, colleague.token, 200);
+        success("GET", path, null, colleague.token, 404);
+        success("GET", unitPath, null, colleague.token, 404);
+        assertThat(node(success("GET",owner.base(),null,colleague.token,200)).size()).isZero();
         success("POST", owner.base(), propertyDetails("Denied"), colleague.token, 403);
         success("PUT", path, edit(0, propertyDetails("Denied")), colleague.token, 403);
         success("POST", path + "/units", unitDetails("Denied"), colleague.token, 403);

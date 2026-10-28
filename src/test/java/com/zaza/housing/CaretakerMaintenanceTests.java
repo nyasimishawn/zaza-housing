@@ -396,6 +396,11 @@ class CaretakerMaintenanceTests {
         400);
   }
 
+  @Test void aCaretakerCannotCoordinateTheirOwnOccupancy()throws Exception{
+    var i=inventory();var lease=active(i);assign(i,i.tenant,List.of("OPERATIONS","MAINTENANCE","INSPECTIONS"));
+    call("POST",maintenance(i),workBody(lease),i.tenant,403);
+    call("GET",i.path(lease)+"/inspections",null,i.tenant,403);
+  }
   private record InspectionFixture(Inventory i, JsonNode lease) {}
 
   private InspectionFixture signedTracked() throws Exception {
