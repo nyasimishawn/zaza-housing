@@ -58,7 +58,7 @@ public class InspectionReadService {
 
   public List<InspectionResponse> list(
       AuthenticatedUser actor, UUID org, UUID property, UUID lease) {
-    access.lease(actor, org, property, lease, false);
+    access.operationalLease(actor, org, property, lease, false);
     return inspections.list(lease, org == null).stream()
         .map(i -> response(i, org == null))
         .toList();
@@ -66,7 +66,7 @@ public class InspectionReadService {
 
   public InspectionResponse get(
       AuthenticatedUser actor, UUID org, UUID property, UUID lease, UUID id) {
-    var l = access.lease(actor, org, property, lease, false);
+    var l = access.operationalLease(actor, org, property, lease, false);
     return response(access.report(l, id, org == null), org == null);
   }
 
@@ -100,7 +100,7 @@ public class InspectionReadService {
       UUID id,
       int limit,
       int offset) {
-    var l = access.lease(actor, org, property, lease, false);
+    var l = access.operationalLease(actor, org, property, lease, false);
     access.report(l, id, org == null);
     Pagination.validate(limit, offset);
     return inspections.revisions(id, org == null, limit, offset).stream()
@@ -111,7 +111,7 @@ public class InspectionReadService {
   @Transactional
   public InspectionRevision document(
       AuthenticatedUser actor, UUID org, UUID property, UUID lease, UUID id, UUID revisionId) {
-    var l = access.lease(actor, org, property, lease, true);
+    var l = access.operationalLease(actor, org, property, lease, true);
     access.report(l, id, org == null);
     var r =
         inspections
@@ -131,7 +131,7 @@ public class InspectionReadService {
       UUID id,
       int limit,
       int offset) {
-    var l = access.lease(actor, org, property, lease, false);
+    var l = access.operationalLease(actor, org, property, lease, false);
     access.report(l, id, org == null);
     Pagination.validate(limit, offset);
     return inspections.history(lease, id, org == null, limit, offset);
@@ -167,7 +167,7 @@ public class InspectionReadService {
 
   public InspectionComparisonResponse comparison(
       AuthenticatedUser actor, UUID org, UUID property, UUID id) {
-    access.lease(actor, org, property, id, false);
+    access.operationalLease(actor, org, property, id, false);
     var in =
         inspections
             .kind(id, InspectionKind.MOVE_IN)
@@ -212,7 +212,7 @@ public class InspectionReadService {
       UUID id,
       int limit,
       int offset) {
-    var l = access.lease(actor, org, property, lease, false);
+    var l = access.operationalLease(actor, org, property, lease, false);
     access.report(l, id, org == null);
     Pagination.validate(limit, offset);
     return inspections.attestations(id, limit, offset);

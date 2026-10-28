@@ -36,6 +36,8 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
       com.zaza.housing.controller.AgencyMandateController.class,
       com.zaza.housing.controller.CaretakerWorkspaceController.class,
       com.zaza.housing.controller.PropertyTaskController.class,
+      com.zaza.housing.controller.CaretakerOccupancyController.class,
+      com.zaza.housing.controller.TenantPropertyNoticeController.class,
       DocumentController.class,
       VerificationController.class,
       com.zaza.housing.controller.PropertyOwnershipVerificationController.class,
