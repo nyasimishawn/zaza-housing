@@ -160,7 +160,7 @@ public class AgencyRepository {
     a.put("limit", limit);
     a.put("offset", offset);
     return named.query(
-        "SELECT p.id,p.name,p.city,p.country_code,p.status FROM properties p WHERE"
+        "SELECT p.id,p.name,p.city,p.country_code,p.status,p.version FROM properties p WHERE"
             + " agency_property_access(:org,p.id) AND ("
             + MANAGER
             + " OR EXISTS(SELECT 1 FROM agency_property_assignments a WHERE a.agency_id=:org AND"
@@ -173,7 +173,7 @@ public class AgencyRepository {
                 r.getString("name"),
                 r.getString("city"),
                 r.getString("country_code"),
-                r.getString("status")));
+                r.getString("status"),r.getLong("version")));
   }
 
   public List<AgencyAgentResponse> agents(UUID org, int limit, int offset) {

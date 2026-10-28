@@ -189,7 +189,10 @@ public class PropertyService {
                 new ApiException(HttpStatus.NOT_FOUND, "Property not found."));
         // Delegations can be revoked while a writer waits for the property lock. The scoped query
         // rechecks its predicate against the latest row, so revoked agencies cannot finish a new mutation.
-        if (write) requireManager(organization);
+        if (write) {
+          requireManager(organization);
+          result=properties.findInOrganization(organizationId,id,false).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"Property not found."));
+        }
         if(!write && organization.type()==OrganizationType.AGENCY && organization.role()==MembershipRole.MEMBER && !agency.assigned(organizationId,id,actor.id()))throw new ApiException(HttpStatus.NOT_FOUND,"Property not found.");
         return result;
     }

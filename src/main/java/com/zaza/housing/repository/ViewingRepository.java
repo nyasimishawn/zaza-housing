@@ -279,7 +279,7 @@ public class ViewingRepository {
     args.put("offset", offset);
     String where = " WHERE " + ConversationRepository.ALLOW;
     if (org != null) {
-      where += " AND :org IN(p.owner_organization_id,p.manager_organization_id)";
+      where += " AND agency_management_access(:org,p.id)";
       args.put("org", org);
     }
     if (property != null) {
