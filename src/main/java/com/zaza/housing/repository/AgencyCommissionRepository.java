@@ -21,7 +21,8 @@ public class AgencyCommissionRepository {
   }
 
   private static Timestamp t(Instant v) {
-    return v == null ? null : Timestamp.from(v);
+    // PostgreSQL stores microseconds; truncate instead of rounding an approval into the future.
+    return v == null ? null : Timestamp.from(v.truncatedTo(java.time.temporal.ChronoUnit.MICROS));
   }
 
   private static Instant instant(java.sql.ResultSet r, String key) throws java.sql.SQLException {
