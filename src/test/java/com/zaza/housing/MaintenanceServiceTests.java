@@ -1014,6 +1014,68 @@ class MaintenanceServiceTests {
         .doesNotContain("Private lease premises");
   }
 
+  @Test
+  void coordinatorConsoleFiltersNeverExposePersonalBookingsOrAnotherProperty() throws Exception {
+    var c = maintenance();
+    Provider p = provider();
+    JsonNode booking = node(call("POST", "/api/v1/me/work-requests", createBody(c.lease, "SERVICE_BOOKING", p), c.i.tenant, 200));
+    String base = c.i.propertyPath() + "/work-requests";
+    JsonNode rows = node(call("GET", base + "?kind=MAINTENANCE&status=SUBMITTED&priority=NORMAL&limit=20&offset=0", null, c.i.owner, 200));
+    assertThat(rows.size()).isEqualTo(1);
+    assertThat(rows.get(0).get("id").asText()).isEqualTo(c.id);
+    assertThat(rows.get(0).get("propertyId").asText()).isEqualTo(c.i.property);
+    assertThat(rows.toString()).doesNotContain(booking.get("id").asText());
+    call("GET", base + "/" + booking.get("id").asText(), null, c.i.owner, 404);
+    call("GET", base + "?limit=20&offset=20", null, c.i.owner, 200);
+    Account unrelated = account();
+    call("GET", base, null, unrelated, 404);
+  }
+
+  @Test
+  void coordinatorConsoleInternalNotesRemainPrivateAndRevocationBlocksFrozenRetry() throws Exception {
+    var c = maintenance();
+    Account agent = account();
+    String agency = organization(agent, "AGENCY");
+    JsonNode property = node(call("GET", c.i.propertyPath(), null, c.i.owner, 200));
+    call("PATCH", c.i.propertyPath() + "/management", Map.of("version", property.get("version").asLong(), "managerOrganizationId", agency), c.i.owner, 200);
+    String scoped = "/api/v1/organizations/" + agency + "/properties/" + c.i.property + "/work-requests/" + c.id;
+    var note = cmd(c);
+    note.put("visibility", "INTERNAL");
+    note.put("message", "Private coordinator procurement discussion.");
+    call("POST", scoped + "/notes", note, agent, 200);
+    call("POST", scoped + "/notes", note, agent, 200);
+    assertThat(call("GET", scoped + "/history", null, agent, 200).body()).contains("Private coordinator procurement discussion.");
+    assertThat(call("GET", c.tenant() + "/history", null, c.i.tenant, 200).body()).doesNotContain("Private coordinator procurement discussion.");
+    property = node(call("GET", c.i.propertyPath(), null, c.i.owner, 200));
+    var revoke = new HashMap<String,Object>();
+    revoke.put("version", property.get("version").asLong());
+    revoke.put("managerOrganizationId", null);
+    call("PATCH", c.i.propertyPath() + "/management", revoke, c.i.owner, 200);
+    call("GET", scoped, null, agent, 404);
+    call("POST", scoped + "/notes", note, agent, 404);
+  }
+
+  @Test
+  void coordinatorConsoleInternalWorkCannotSkipTenantEntryOrCompletionReview() throws Exception {
+    var c = maintenance();
+    triage(c);
+    call("POST", c.manager() + "/assign-internal", cmd(c), c.i.owner, 200);
+    propose(c, clock.instant().plusSeconds(3600), clock.instant().plusSeconds(7200));
+    call("POST", c.manager() + "/start", cmd(c), c.i.owner, 409);
+    acceptVisit(c);
+    clock.now = clock.instant().plusSeconds(3600);
+    loginAll(c);
+    call("POST", c.manager() + "/start", cmd(c), c.i.owner, 200);
+    var completion = cmd(c);
+    completion.remove("message");
+    completion.put("summary", "Internal team repaired and tested the kitchen tap.");
+    call("POST", c.manager() + "/submit-completion", completion, c.i.owner, 200);
+    call("POST", c.manager() + "/approve-completion", consent(c), c.i.owner, 409);
+    call("POST", c.tenant() + "/confirm-completion", consent(c), c.i.tenant, 200);
+    JsonNode result = node(call("POST", c.manager() + "/approve-completion", consent(c), c.i.owner, 200));
+    assertThat(result.get("status").asText()).isEqualTo("COMPLETED");
+  }
+
   private Scenario maintenance() throws Exception {
     Inventory i = inventory();
     JsonNode lease = active(i);
