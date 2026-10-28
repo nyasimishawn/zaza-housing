@@ -8,4 +8,6 @@ This implements blueprint section 13 in the current Flutter app, in three coordi
 
 General property tasks also cover vacant units/common areas without creating a fictitious tenant or lease. They track operations/evidence; financial procurement for non-tenancy work is a separate extension. This feature does not add payment execution, legal eviction notices or a new frontend framework.
 
-Caregiver permissions are explicit property capabilities within existing organization membership; they do not grant OWNER/ADMIN status. Revocation, removal, expiry and lost agency mandates are rechecked on every read/write and after property-lock waits. Completed evidence/history is retained for current authorized property managers; former caretakers lose operational access.
+Caretaker permissions are explicit property capabilities within existing organization membership; they do not grant OWNER/ADMIN status. Revocation, removal, expiry and lost agency mandates are rechecked on every read/write and after property-lock waits. Completed evidence/history is retained for current authorized property managers; former caretakers lose operational access.
+
+Business members now need an accepted property capability (or an existing agency agent property assignment) to read inventory. OWNER/ADMIN access is unchanged. Existing unassigned MEMBER accounts must be invited to the relevant properties; this deliberately removes the old landlord-wide member read access.
