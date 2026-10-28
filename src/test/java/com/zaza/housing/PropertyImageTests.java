@@ -143,7 +143,7 @@ class PropertyImageTests {
     }
 
     @Test
-    void guestsOutsidersAndOrdinaryMembersCannotManagePrivateImages() throws Exception {
+    void guestsOutsidersAndUnassignedMembersCannotReadPrivateImages() throws Exception {
         Inventory inventory = inventory();
         Account member = account();
         Account outsider = account();
@@ -151,9 +151,9 @@ class PropertyImageTests {
         JsonNode image = uploaded(inventory, picture("png", 30, 20), "image.png", "image/png", "Private");
         call("GET", inventory.images(), null, null, 401);
         call("GET", inventory.images(), null, outsider.token, 404);
-        call("GET", inventory.images(), null, member.token, 200);
+        call("GET", inventory.images(), null, member.token, 404);
         binary(image.get("contentUrl").asText(), outsider.token, 404);
-        binary(image.get("contentUrl").asText(), member.token, 200);
+        binary(image.get("contentUrl").asText(), member.token, 404);
         assertThat(upload(inventory.images(), picture("png", 30, 20), "image.png", "image/png", "", member.token).statusCode()).isEqualTo(403);
         assertThat(upload(inventory.images(), picture("png", 30, 20), "image.png", "image/png", "", null).statusCode()).isEqualTo(401);
         call("PUT", imagePath(inventory, image), Map.of("version", 0, "altText", "Denied"), member.token, 403);
