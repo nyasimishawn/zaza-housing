@@ -491,6 +491,53 @@ class CaretakerOperationsTests {
         .isZero();
   }
 
+  @Test
+  void capabilityOrderIsStableForDurableInvitationRetries() {
+    var first = new java.util.LinkedHashSet<com.zaza.housing.enums.CaretakerCapability>();
+    first.add(com.zaza.housing.enums.CaretakerCapability.NOTICES);
+    first.add(com.zaza.housing.enums.CaretakerCapability.OPERATIONS);
+    first.add(com.zaza.housing.enums.CaretakerCapability.INSPECTIONS);
+    var id = UUID.randomUUID();
+    var property = UUID.randomUUID();
+    var user = UUID.randomUUID();
+    var expiry = java.time.Instant.now().plusSeconds(3600);
+    var one =
+        new com.zaza.housing.dto.CaretakerInvitationRequest(
+            id,
+            property,
+            1L,
+            user,
+            first,
+            expiry,
+            "Property rounds and inspection preparation.",
+            true,
+            PASSWORD);
+    first.clear();
+    first.add(com.zaza.housing.enums.CaretakerCapability.INSPECTIONS);
+    first.add(com.zaza.housing.enums.CaretakerCapability.OPERATIONS);
+    first.add(com.zaza.housing.enums.CaretakerCapability.NOTICES);
+    var two =
+        new com.zaza.housing.dto.CaretakerInvitationRequest(
+            id,
+            property,
+            1L,
+            user,
+            first,
+            expiry,
+            "Property rounds and inspection preparation.",
+            true,
+            PASSWORD);
+    assertThat(com.zaza.housing.util.RequestFingerprints.of(json, one))
+        .isEqualTo(com.zaza.housing.util.RequestFingerprints.of(json, two));
+    assertThat(new java.util.ArrayList<>(one.capabilities()))
+        .containsExactly(
+            com.zaza.housing.enums.CaretakerCapability.OPERATIONS,
+            com.zaza.housing.enums.CaretakerCapability.INSPECTIONS,
+            com.zaza.housing.enums.CaretakerCapability.NOTICES);
+    assertThatThrownBy(() -> one.capabilities().clear())
+        .isInstanceOf(UnsupportedOperationException.class);
+  }
+
   private Portfolio portfolio(String type) throws Exception {
     Account actor = account();
     JsonNode organization =
