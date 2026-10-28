@@ -241,6 +241,8 @@ public class ConversationService {
       throw WorkAccessService.conflict("Accept the job before opening customer conversations.");
     if (source.kind() == WorkKind.SERVICE_BOOKING && r.channel() != ConversationChannel.SHARED)
       throw WorkAccessService.invalid("Personal service bookings use the shared channel.");
+    if (r.channel() == ConversationChannel.PROCUREMENT && party == WorkParty.COORDINATOR)
+      work.manager(actor, a);
     if (r.channel() == ConversationChannel.PROCUREMENT && party == WorkParty.CUSTOMER)
       throw WorkAccessService.forbidden("Procurement discussions exclude maintenance occupants.");
     var replay = activity.replay(actor, workId, r.requestId(), "WORK_OPENED", r);

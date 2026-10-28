@@ -38,7 +38,7 @@ public class ConversationRepository {
       FROM conversations c JOIN properties p ON p.id=c.property_id LEFT JOIN work_requests w ON w.id=c.work_id
       LEFT JOIN LATERAL (SELECT m.organization_id FROM organization_memberships m
       WHERE m.user_id=:actor AND agency_management_access(m.organization_id,p.id)
-      AND (m.role IN ('OWNER','ADMIN') OR (c.kind='ENQUIRY' AND c.channel='SHARED'
+      AND (m.role IN ('OWNER','ADMIN') OR (c.kind='WORK' AND w.kind='MAINTENANCE' AND c.channel='SHARED' AND c.customer_id<>:actor AND caretaker_property_access(m.organization_id,p.id,:actor,'MAINTENANCE')) OR (c.kind='ENQUIRY' AND c.channel='SHARED'
       AND EXISTS(SELECT 1 FROM agency_leads al JOIN agency_property_assignments aa ON aa.agency_id=al.agency_id AND aa.property_id=al.property_id AND aa.agent_id=al.assigned_to
         WHERE al.agency_id=m.organization_id AND al.enquiry_id=c.id AND al.assigned_to=:actor AND aa.active AND agency_property_access(al.agency_id,al.property_id))))
       ORDER BY CASE WHEN m.organization_id=p.owner_organization_id THEN 0 ELSE 1 END LIMIT 1) pm ON true
@@ -505,7 +505,7 @@ public class ConversationRepository {
         SELECT 1 FROM organization_memberships m WHERE m.user_id=u.id AND ((m.role IN ('OWNER','ADMIN') AND
         ((agency_management_access(m.organization_id,p.id) AND (w.id IS NULL OR w.kind='MAINTENANCE'))
         OR(m.organization_id=c.provider_id AND w.assignment_id=c.assignment_id AND w.provider_id=c.provider_id AND w.status<>'ASSIGNED')))
-        OR (c.kind='ENQUIRY' AND c.channel='SHARED' AND EXISTS(SELECT 1 FROM agency_leads al JOIN agency_property_assignments aa
+        OR (c.kind='WORK' AND w.kind='MAINTENANCE' AND c.channel='SHARED' AND c.customer_id<>u.id AND caretaker_property_access(m.organization_id,p.id,u.id,'MAINTENANCE')) OR (c.kind='ENQUIRY' AND c.channel='SHARED' AND EXISTS(SELECT 1 FROM agency_leads al JOIN agency_property_assignments aa
         ON aa.agency_id=al.agency_id AND aa.property_id=al.property_id AND aa.agent_id=al.assigned_to
         WHERE al.agency_id=m.organization_id AND al.enquiry_id=c.id AND al.assigned_to=u.id AND aa.active AND agency_property_access(al.agency_id,al.property_id))))))
         WHERE c.id=? AND NOT EXISTS(SELECT 1 FROM conversation_preferences pref WHERE pref.conversation_id=c.id AND pref.user_id=u.id AND pref.muted)

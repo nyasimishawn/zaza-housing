@@ -114,6 +114,12 @@ public class WorkCompletionService {
             request.version());
     var a = m.access();
     if (m.replay()) return commands.response(a);
+    if (memberships
+        .member(org, actor.id())
+        .filter(member -> member.role() != com.zaza.housing.enums.MembershipRole.MEMBER)
+        .isEmpty())
+      throw WorkAccessService.forbidden(
+          "An owner or agency administrator must approve the final maintenance completion.");
     WorkAccessService.state(a.work(), WorkStatus.AWAITING_APPROVAL);
     work.completed(id, clock.instant());
     return commands.finish(

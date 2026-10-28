@@ -68,10 +68,12 @@ public class WorkRequestService {
   public WorkView create(
       AuthenticatedUser actor, UUID organization, UUID property, CreateWorkRequest request) {
     boolean tenant = organization == null;
+    if(!tenant) access.coordinateProperty(actor,organization,property,true);
     var lease =
         tenant
             ? leaseAccess.tenant(actor, request.leaseId(), true)
-            : leaseAccess.manager(actor, organization, property, request.leaseId(), true);
+            : leases.scoped(property,request.leaseId()).orElseThrow(()->WorkAccessService.missing("Occupancy not found."));
+    if(!tenant) access.independent(actor,organization,lease.tenantId());
     if (!tenant && request.kind() != WorkKind.MAINTENANCE)
       throw WorkAccessService.forbidden(
           "Managers create property maintenance; tenant service bookings remain private to the"
