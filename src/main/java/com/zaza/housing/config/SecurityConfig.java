@@ -61,7 +61,7 @@ public class SecurityConfig {
         config.setAllowedOrigins(Arrays.stream(origins.split(",")).map(String::trim).filter(s -> !s.isBlank()).toList());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Range"));
-        config.setExposedHeaders(List.of("Accept-Ranges", "Content-Range", "Content-Length"));
+        config.setExposedHeaders(List.of("Accept-Ranges", "Content-Range", "Content-Length", "Retry-After"));
         config.setAllowCredentials(false);
         var source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", config);
