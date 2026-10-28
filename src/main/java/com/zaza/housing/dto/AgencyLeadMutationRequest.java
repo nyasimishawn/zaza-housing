@@ -1,0 +1,20 @@
+package com.zaza.housing.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
+import java.util.UUID;
+
+public record AgencyLeadMutationRequest(
+    @NotNull UUID requestId,
+    @NotNull @PositiveOrZero Long version,
+    String stage,
+    UUID agentId,
+    UUID propertyId,
+    UUID listingId,
+    UUID enquiryId,
+    UUID viewingId,
+    UUID applicationId,
+    UUID leaseId,
+    @NotBlank @Size(max = 2000) String message) {}
