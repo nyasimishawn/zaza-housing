@@ -138,7 +138,7 @@ public class PropertyNoticeService {
     if (n.status().equals("CANCELLED"))
       throw AgencyAccessService.conflict("This notice is cancelled; its history is retained.");
     if (!tenant) {
-      if(!command.equals("reply")) access.requireManager(access.organization(a, o, false));
+      if (!command.equals("reply")) access.requireManager(access.organization(a, o, false));
       if (n.tenantId().equals(a.id()))
         throw WorkAccessService.forbidden("Another manager must publish your tenancy notice.");
       switch (command) {
@@ -166,8 +166,10 @@ public class PropertyNoticeService {
         }
         case "cancel" -> repository.cancel(id, clock.instant());
         case "reply" -> {
-          if(!n.status().equals("PUBLISHED"))throw AgencyAccessService.conflict("Publish the notice before sending a resident reply.");
-          repository.reply(id,null,clock.instant());
+          if (!n.status().equals("PUBLISHED"))
+            throw AgencyAccessService.conflict(
+                "Publish the notice before sending a resident reply.");
+          repository.reply(id, null, clock.instant());
         }
         default ->
             throw AgencyAccessService.bad(
