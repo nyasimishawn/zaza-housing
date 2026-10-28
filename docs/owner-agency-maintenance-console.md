@@ -1,0 +1,11 @@
+# Owner and agency maintenance console contract
+
+Flutter coordinates property maintenance through `/api/v1/organizations/{organizationId}/properties/{propertyId}/work-requests`. The existing maintenance API, migrations and authorization remain unchanged. Current OWNER/ADMIN of the owning business or delegated agency can coordinate only that property's MAINTENANCE records; personal service bookings stay private.
+
+The console lists current counts and paginated status/priority filters, creates lease-backed maintenance, triages or requests information, assigns active provider offers or internal work, displays quotes/visits/evidence/history, records updates and explicit internal notes/photos, handles disputes/rework, and approves completion after the occupant review. Rejected/cancelled/completed records retain their history. Vacant-unit/common-area requests are not introduced: creation still requires an eligible active lease.
+
+Agencies may coordinate but only owner administrators distinct from the occupant may accept a maintenance quote. Provider teams control external job proposals/start/completion; coordinators control those actions only for internal work. A proposed visit is never entry permission. Only the occupant can accept entry and first review completion; final management approval is a later step. Completion, payment funding and provider payout remain separate workflows.
+
+Quote values and procurement scope are restricted records. INTERNAL history/evidence is available to current property managers, while SHARED records are visible to authorized participants. Revocation applies even to retries with an earlier request UUID. Freeze command UUID/body/version and upload bytes; a lost response can be manually retried identically, never automatically replaced by a new write. Backend locks, current permissions, versions and idempotency remain authoritative.
+
+`MaintenanceServiceTests` includes console-specific coverage for filtered private scope, internal-note privacy and revocation during retry, and internal work that cannot bypass occupant entry/completion consent. The existing suite also covers owner/agency spending boundaries, current provider offers, evidence and rescheduling, dispute/rework, concurrency and financial holds.
