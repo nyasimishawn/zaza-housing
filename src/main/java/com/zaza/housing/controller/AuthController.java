@@ -21,29 +21,33 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1")
 public class AuthController {
-    private final AuthService auth;
+  private final AuthService auth;
 
-    public AuthController(AuthService auth) { this.auth = auth; }
+  public AuthController(AuthService auth) {
+    this.auth = auth;
+  }
 
-    @PostMapping("/auth/register")
-    @ResponseStatus(HttpStatus.CREATED)
-    public UserAccount register(@Valid @RequestBody RegisterRequest request) {
-        return auth.register(request.email(), request.password(), request.displayName());
-    }
+  @PostMapping("/auth/register")
+  @ResponseStatus(HttpStatus.CREATED)
+  public UserAccount register(@Valid @RequestBody RegisterRequest request) {
+    return auth.register(request.email(), request.password(), request.displayName());
+  }
 
-    @PostMapping("/auth/login")
-    public LoginResponse login(@Valid @RequestBody LoginRequest request) {
-        return auth.login(request.email(), request.password());
-    }
+  @PostMapping("/auth/login")
+  public LoginResponse login(@Valid @RequestBody LoginRequest request) {
+    return auth.login(request.email(), request.password(), request.code(), request.recoveryCode());
+  }
 
-    @PostMapping("/auth/logout")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void logout(@AuthenticationPrincipal AuthenticatedUser user,
-            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
-        auth.logout(user, authorization.substring(7));
-    }
+  @PostMapping("/auth/logout")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void logout(
+      @AuthenticationPrincipal AuthenticatedUser user,
+      @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
+    auth.logout(user, authorization.substring(7));
+  }
 
-    @GetMapping("/me")
-    public UserAccount me(@AuthenticationPrincipal AuthenticatedUser user) { return auth.me(user); }
-
+  @GetMapping("/me")
+  public UserAccount me(@AuthenticationPrincipal AuthenticatedUser user) {
+    return auth.me(user);
+  }
 }

@@ -1,0 +1,10 @@
+CREATE TABLE support_knowledge (
+ id UUID PRIMARY KEY,slug VARCHAR(80) NOT NULL UNIQUE,title VARCHAR(150) NOT NULL,body VARCHAR(8000) NOT NULL,
+ status VARCHAR(12) NOT NULL CHECK(status IN('DRAFT','PUBLISHED','ARCHIVED')),version BIGINT NOT NULL DEFAULT 0,
+ updated_by UUID REFERENCES app_users(id),created_at TIMESTAMPTZ NOT NULL DEFAULT now(),updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO support_knowledge(id,slug,title,body,status) VALUES
+ ('eb01fc92-1640-4992-88dd-89ec7add0011','account-access','Account access and recovery','Use Account security to verify your email, manage sessions and set up an authenticator. Password recovery requires configured email delivery. If an authenticator is enabled, retain your recovery codes safely; support will never ask for your password or authenticator secret.','PUBLISHED'),
+ ('eb01fc92-1640-4992-88dd-89ec7add0012','report-a-problem','Report a problem or suspicious listing','Sign in and open Help & Support to create a case. Choose Listing report and the published listing when reporting suspicious inventory. Share only evidence relevant to the issue. Evidence is private to you and the assigned independent operator; internal operator notes are not shared.','PUBLISHED'),
+ ('eb01fc92-1640-4992-88dd-89ec7add0013','case-resolution','Follow a support case or dispute','Your case page shows shared replies and status updates. An operator may request information or escalate the case. After a resolution, you may accept and close it or reopen it within 14 days. Closing the case preserves its history. Support resolutions do not themselves move money, sign leases or legally determine property ownership.','PUBLISHED'),
+ ('eb01fc92-1640-4992-88dd-89ec7add0014','payment-records','Payment records and disputes','Current rent, service and commission workflows retain records of externally completed transfers and independent checks. A support resolution does not execute a refund or payout. Use the relevant payment or deposit workflow and include its reference when explaining a problem, without posting bank passwords or payment credentials.','PUBLISHED');

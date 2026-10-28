@@ -25,46 +25,101 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 public class SecurityConfig {
-    @Bean Clock clock() { return Clock.systemUTC(); }
-    @Bean PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(12); }
+  @Bean
+  Clock clock() {
+    return Clock.systemUTC();
+  }
 
-    @Bean
-    SecurityFilterChain apiSecurity(HttpSecurity http, AuthRepository users, Clock clock,
-            @Qualifier("corsConfiguration") CorsConfigurationSource corsConfiguration,
-            @Value("${zaza.auth.requests-per-minute}") int authLimit) throws Exception {
-        return http
-                .csrf(AbstractHttpConfigurer::disable)
-                .cors(cors -> cors.configurationSource(corsConfiguration))
-                .httpBasic(AbstractHttpConfigurer::disable)
-                .formLogin(AbstractHttpConfigurer::disable)
-                .logout(AbstractHttpConfigurer::disable)
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(rules -> rules
-                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
-                        .requestMatchers(HttpMethod.GET,"/api/v1/service-providers","/api/v1/service-providers/{id}","/api/v1/service-providers/{id}/offers","/api/v1/service-providers/{id}/reviews").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/listings", "/api/v1/listings/{id}", "/api/v1/listings/{id}/ownership-verification").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/listings/{id}/images/{imageId}", "/api/v1/listings/{id}/videos/{videoId}").permitAll()
-                        .requestMatchers("/api/v1/admin/**").hasRole("PLATFORM_ADMIN")
-                        .anyRequest().authenticated())
-                .exceptionHandling(errors -> errors
-                        .authenticationEntryPoint((request, response, error) -> SecurityErrors.write(response, 401))
-                        .accessDeniedHandler((request, response, error) -> SecurityErrors.write(response, 403)))
-                .addFilterBefore(new SessionAuthenticationFilter(users, clock), UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(new AuthRateLimitFilter(clock, authLimit), SessionAuthenticationFilter.class)
-                .build();
-    }
+  @Bean
+  PasswordEncoder passwordEncoder() {
+    return new BCryptPasswordEncoder(12);
+  }
 
-    @Bean
-    CorsConfigurationSource corsConfiguration(@Value("${zaza.cors.allowed-origins}") String origins) {
-        var config = new CorsConfiguration();
-        config.setAllowedOrigins(Arrays.stream(origins.split(",")).map(String::trim).filter(s -> !s.isBlank()).toList());
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Range"));
-        config.setExposedHeaders(List.of("Accept-Ranges", "Content-Range", "Content-Length", "Retry-After"));
-        config.setAllowCredentials(false);
-        var source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/**", config);
-        return source;
-    }
+  @Bean
+  SecurityFilterChain apiSecurity(
+      HttpSecurity http,
+      AuthRepository users,
+      Clock clock,
+      com.zaza.housing.repository.AccountSecurityRepository security,
+      @Value("${zaza.security.require-admin-mfa:true}") boolean requireMfa,
+      @Qualifier("corsConfiguration") CorsConfigurationSource corsConfiguration,
+      @Value("${zaza.auth.requests-per-minute}") int authLimit)
+      throws Exception {
+    return http.csrf(AbstractHttpConfigurer::disable)
+        .cors(cors -> cors.configurationSource(corsConfiguration))
+        .httpBasic(AbstractHttpConfigurer::disable)
+        .formLogin(AbstractHttpConfigurer::disable)
+        .logout(AbstractHttpConfigurer::disable)
+        .sessionManagement(
+            session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .authorizeHttpRequests(
+            rules ->
+                rules
+                    .requestMatchers(
+                        HttpMethod.POST,
+                        "/api/v1/auth/register",
+                        "/api/v1/auth/login",
+                        "/api/v1/auth/recovery/request",
+                        "/api/v1/auth/recovery/reset",
+                        "/api/v1/auth/email/verify")
+                    .permitAll()
+                    .requestMatchers(
+                        HttpMethod.GET, "/api/v1/support/topics", "/api/v1/support/topics/{id}")
+                    .permitAll()
+                    .requestMatchers(HttpMethod.GET, "/actuator/health")
+                    .permitAll()
+                    .requestMatchers(
+                        HttpMethod.GET,
+                        "/api/v1/service-providers",
+                        "/api/v1/service-providers/{id}",
+                        "/api/v1/service-providers/{id}/offers",
+                        "/api/v1/service-providers/{id}/reviews")
+                    .permitAll()
+                    .requestMatchers(
+                        HttpMethod.GET,
+                        "/api/v1/listings",
+                        "/api/v1/listings/{id}",
+                        "/api/v1/listings/{id}/ownership-verification")
+                    .permitAll()
+                    .requestMatchers(
+                        HttpMethod.GET,
+                        "/api/v1/listings/{id}/images/{imageId}",
+                        "/api/v1/listings/{id}/videos/{videoId}")
+                    .permitAll()
+                    .requestMatchers("/api/v1/admin/**")
+                    .hasRole("PLATFORM_ADMIN")
+                    .anyRequest()
+                    .authenticated())
+        .exceptionHandling(
+            errors ->
+                errors
+                    .authenticationEntryPoint(
+                        (request, response, error) -> SecurityErrors.write(response, 401))
+                    .accessDeniedHandler(
+                        (request, response, error) -> SecurityErrors.write(response, 403)))
+        .addFilterBefore(
+            new SessionAuthenticationFilter(users, clock),
+            UsernamePasswordAuthenticationFilter.class)
+        .addFilterAfter(
+            new com.zaza.housing.filter.AdminMfaFilter(security, clock, requireMfa),
+            SessionAuthenticationFilter.class)
+        .addFilterBefore(
+            new AuthRateLimitFilter(clock, authLimit), SessionAuthenticationFilter.class)
+        .build();
+  }
+
+  @Bean
+  CorsConfigurationSource corsConfiguration(@Value("${zaza.cors.allowed-origins}") String origins) {
+    var config = new CorsConfiguration();
+    config.setAllowedOrigins(
+        Arrays.stream(origins.split(",")).map(String::trim).filter(s -> !s.isBlank()).toList());
+    config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+    config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Range"));
+    config.setExposedHeaders(
+        List.of("Accept-Ranges", "Content-Range", "Content-Length", "Retry-After"));
+    config.setAllowCredentials(false);
+    var source = new UrlBasedCorsConfigurationSource();
+    source.registerCorsConfiguration("/api/**", config);
+    return source;
+  }
 }
