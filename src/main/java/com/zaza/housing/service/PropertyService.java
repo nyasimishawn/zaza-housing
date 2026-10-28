@@ -89,9 +89,8 @@ public class PropertyService {
     }
 
     public Property getForManagement(AuthenticatedUser actor, UUID organizationId, UUID id) {
-        Property result = access(actor, organizationId, id, false);
         requireManager(organizations.get(actor, organizationId));
-        return result;
+        return access(actor, organizationId, id, false);
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
