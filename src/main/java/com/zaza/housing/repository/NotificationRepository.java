@@ -32,7 +32,7 @@ public class NotificationRepository {
               rs.getObject("conversation_id", UUID.class),
               rs.getString("conversation_url"),
               rs.getObject("vault_event_id", UUID.class),
-              rs.getString("vault_url"));
+              rs.getString("vault_url"),rs.getObject("caretaker_target_id",UUID.class),rs.getString("caretaker_url"));
     private final JdbcTemplate jdbc;
     public NotificationRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
     public void append(UUID user, UUID application, UUID event, ApplicationEventType type, String message) {
@@ -67,7 +67,7 @@ public class NotificationRepository {
     jdbc.query(
         """
         SELECT DISTINCT ON (m.user_id) m.user_id,m.organization_id FROM organization_memberships m
-        JOIN properties p ON p.id=? AND (m.organization_id=p.owner_organization_id OR m.organization_id=p.manager_organization_id)
+        JOIN properties p ON p.id=? AND agency_management_access(m.organization_id,p.id)
         JOIN app_users u ON u.id=m.user_id AND u.active
         WHERE m.role IN ('OWNER','ADMIN') AND m.user_id<>?
         ORDER BY m.user_id,CASE WHEN m.organization_id=p.owner_organization_id THEN 0 ELSE 1 END
@@ -112,7 +112,7 @@ public class NotificationRepository {
     jdbc.query(
         """
         SELECT DISTINCT ON (m.user_id) m.user_id,m.organization_id FROM organization_memberships m
-        JOIN properties p ON p.id=? AND (m.organization_id=p.owner_organization_id OR m.organization_id=p.manager_organization_id)
+        JOIN properties p ON p.id=? AND agency_management_access(m.organization_id,p.id)
         JOIN app_users u ON u.id=m.user_id AND u.active
         WHERE m.role IN ('OWNER','ADMIN') AND m.user_id<>?
         ORDER BY m.user_id,CASE WHEN m.organization_id=p.owner_organization_id THEN 0 ELSE 1 END
@@ -171,7 +171,7 @@ public class NotificationRepository {
     jdbc.query(
         """
         SELECT DISTINCT ON (m.user_id) m.user_id,m.organization_id FROM organization_memberships m
-        JOIN properties p ON p.id=? AND (m.organization_id=p.owner_organization_id OR m.organization_id=p.manager_organization_id)
+        JOIN properties p ON p.id=? AND agency_management_access(m.organization_id,p.id)
         JOIN app_users u ON u.id=m.user_id AND u.active WHERE m.role IN ('OWNER','ADMIN')
         ORDER BY m.user_id,CASE WHEN m.organization_id=p.owner_organization_id THEN 0 ELSE 1 END
         """,

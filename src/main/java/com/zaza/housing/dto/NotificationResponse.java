@@ -20,4 +20,4 @@ public record NotificationResponse(
     UUID conversationId,
     String conversationUrl,
     UUID vaultEventId,
-    String vaultUrl) {}
+    String vaultUrl, UUID caretakerTargetId, String caretakerUrl) {}

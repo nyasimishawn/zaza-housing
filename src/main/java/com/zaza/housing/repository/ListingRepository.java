@@ -29,7 +29,7 @@ public class ListingRepository {
     private static final String VISIBLE = """
             l.status = 'PUBLISHED' AND p.status = 'ACTIVE' AND u.status = 'ACTIVE' AND u.availability = 'AVAILABLE'
             AND l.source_property_version = p.version AND l.source_unit_version = u.version
-            AND (l.publisher_organization_id = p.owner_organization_id OR l.publisher_organization_id = p.manager_organization_id)
+            AND agency_management_access(l.publisher_organization_id,p.id)
             AND NOT EXISTS (SELECT 1 FROM listing_image_references r LEFT JOIN property_images i
                 ON i.id = r.image_id AND i.property_id = r.property_id WHERE r.listing_id = l.id
                 AND (i.id IS NULL OR i.status <> 'ACTIVE' OR i.version <> r.image_version))
@@ -77,6 +77,16 @@ public class ListingRepository {
         return jdbc.query("SELECT l.*, true AS publicly_visible " + FROM + " WHERE " + VISIBLE + " AND l.id = ?", listing, id).stream().findFirst();
     }
 
+    public List<PublicListingResponse> agencyMatches(UUID org,UUID actor,com.zaza.housing.dto.AgencyClientDetails d,int limit,int offset) {
+        var args=new ArrayList<Object>();
+        String sql="SELECT l.public_snapshot "+FROM+" WHERE "+VISIBLE+" AND agency_property_access(?,p.id) AND (EXISTS(SELECT 1 FROM organization_memberships m WHERE m.organization_id=? AND m.user_id=? AND m.role IN('OWNER','ADMIN')) OR EXISTS(SELECT 1 FROM agency_property_assignments a WHERE a.agency_id=? AND a.property_id=p.id AND a.agent_id=? AND a.active)) AND l.public_snapshot->>'countryCode'=? AND lower(l.public_snapshot->>'city')=lower(?) AND l.public_snapshot->>'currency'=?";
+        args.addAll(List.of(org,org,actor,org,actor,d.countryCode(),d.city(),d.currency()));
+        if(d.minBudget()!=null){sql+=" AND (l.public_snapshot->>'monthlyRent')::numeric>=?";args.add(d.minBudget());}
+        if(d.maxBudget()!=null){sql+=" AND (l.public_snapshot->>'monthlyRent')::numeric<=?";args.add(d.maxBudget());}
+        if(d.minBedrooms()!=null){sql+=" AND (l.public_snapshot->>'bedrooms')::int>=?";args.add(d.minBedrooms());}
+        sql+=" ORDER BY l.published_at DESC,l.id LIMIT ? OFFSET ?";args.add(limit);args.add(offset);
+        return jdbc.query(sql,(rs,n)->json.readValue(rs.getString("public_snapshot"),PublicListingResponse.class),args.toArray());
+    }
     public List<RentalListing> list(UUID property, int limit, int offset) {
         return jdbc.query("SELECT l.*, COALESCE((" + VISIBLE + "), false) AS publicly_visible " + FROM
                 + " WHERE l.property_id = ? ORDER BY l.created_at, l.id LIMIT ? OFFSET ?", listing, property, limit, offset);
