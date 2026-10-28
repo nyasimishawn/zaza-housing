@@ -48,7 +48,7 @@ public class AgencyAccessService {
   }
 
   public void agent(UUID org, UUID agent) {
-    if (agent != null && memberships.member(org, agent).isEmpty())
+    if (agent != null && !repository.currentAgent(org, agent))
       throw bad("Choose a current agency member.");
   }
 

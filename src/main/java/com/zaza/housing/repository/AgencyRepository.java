@@ -93,6 +93,7 @@ public class AgencyRepository {
               r.getObject("lease_id", UUID.class),
               r.getLong("version"),
               r.getTimestamp("won_at") == null ? null : r.getTimestamp("won_at").toInstant(),
+              r.getObject("won_agent_id", UUID.class),
               r.getTimestamp("created_at").toInstant(),
               r.getTimestamp("updated_at").toInstant());
   private final RowMapper<AgencyTask> taskMapper =
@@ -119,7 +120,9 @@ public class AgencyRepository {
               r.getObject("agent_id", UUID.class),
               r.getBoolean("active"),
               r.getLong("version"),
-              r.getTimestamp("updated_at").toInstant());
+              r.getTimestamp("updated_at").toInstant(),
+              r.getString("property_name"),
+              r.getString("agent_name"));
 
   public List<AgencyEnquiryResponse> enquiries(UUID org, int limit, int offset) {
     return jdbc.query(
@@ -140,6 +143,16 @@ public class AgencyRepository {
   public UUID leaseApplication(UUID lease) {
     return jdbc.queryForObject(
         "SELECT application_id FROM rental_leases WHERE id=?", UUID.class, lease);
+  }
+
+  public boolean currentAgent(UUID org, UUID agent) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            "SELECT EXISTS(SELECT 1 FROM organization_memberships m JOIN app_users u ON"
+                + " u.id=m.user_id AND u.active WHERE m.organization_id=? AND m.user_id=?)",
+            Boolean.class,
+            org,
+            agent));
   }
 
   public boolean assigned(UUID org, UUID property, UUID user) {
@@ -173,7 +186,8 @@ public class AgencyRepository {
                 r.getString("name"),
                 r.getString("city"),
                 r.getString("country_code"),
-                r.getString("status"),r.getLong("version")));
+                r.getString("status"),
+                r.getLong("version")));
   }
 
   public List<AgencyAgentResponse> agents(UUID org, int limit, int offset) {
@@ -194,7 +208,9 @@ public class AgencyRepository {
     a.put("limit", limit);
     a.put("offset", offset);
     return named.query(
-        "SELECT * FROM agency_property_assignments a WHERE a.agency_id=:org AND ("
+        "SELECT a.*,p.name property_name,u.display_name agent_name FROM agency_property_assignments"
+            + " a JOIN properties p ON p.id=a.property_id JOIN app_users u ON u.id=a.agent_id WHERE"
+            + " a.agency_id=:org AND ("
             + MANAGER
             + " OR (a.agent_id=:actor AND a.active AND agency_property_access(:org,a.property_id)))"
             + " ORDER BY a.updated_at DESC,a.id LIMIT :limit OFFSET :offset",
@@ -205,8 +221,10 @@ public class AgencyRepository {
   public Optional<AgencyPropertyAssignment> assignment(UUID org, UUID property, UUID user) {
     return jdbc
         .query(
-            "SELECT * FROM agency_property_assignments WHERE agency_id=? AND property_id=? AND"
-                + " agent_id=?",
+            "SELECT a.*,p.name property_name,u.display_name agent_name FROM"
+                + " agency_property_assignments a JOIN properties p ON p.id=a.property_id JOIN"
+                + " app_users u ON u.id=a.agent_id WHERE a.agency_id=? AND a.property_id=? AND"
+                + " a.agent_id=?",
             assignmentMapper,
             org,
             property,
@@ -385,13 +403,15 @@ public class AgencyRepository {
     jdbc.update(
         "UPDATE agency_leads SET"
             + " stage=?,viewing_id=COALESCE(?,viewing_id),application_id=COALESCE(?,application_id),lease_id=COALESCE(?,lease_id),won_at=CASE"
-            + " WHEN ?='WON' THEN ? ELSE won_at END,version=version+1,updated_at=? WHERE id=?",
+            + " WHEN ?='WON' THEN ? ELSE won_at END,won_agent_id=CASE WHEN ?='WON' THEN assigned_to"
+            + " ELSE won_agent_id END,version=version+1,updated_at=? WHERE id=?",
         stage,
         viewing,
         application,
         lease,
         stage,
         time(now),
+        stage,
         time(now),
         id);
   }
