@@ -1,7 +1,9 @@
 package com.zaza.housing.service;
 
+import com.zaza.housing.dto.PropertyOwnershipSubject;
 import com.zaza.housing.dto.VerificationDetails;
 import com.zaza.housing.enums.DocumentCategory;
+import com.zaza.housing.enums.VerificationKind;
 import com.zaza.housing.enums.VerificationStatus;
 import com.zaza.housing.model.AuthenticatedUser;
 import com.zaza.housing.model.VerificationCase;
@@ -40,7 +42,15 @@ public class VerificationAccessService {
     if (!Objects.equals(c.organizationId(), org)
         || (org == null && !actor.id().equals(c.ownerUserId())))
       throw DocumentAccessService.missing();
+    if (c.propertyId() != null) property(org, c.propertyId(), lock);
     return c;
+  }
+
+  public PropertyOwnershipSubject property(UUID org, UUID property, boolean lock) {
+    if (org == null)
+      throw DocumentAccessService.invalid(
+          "Property ownership claims require the owning organization.");
+    return cases.propertySubject(org, property, lock).orElseThrow(DocumentAccessService::missing);
   }
 
   public VerificationCase find(UUID id) {
@@ -59,6 +69,7 @@ public class VerificationAccessService {
     if (lock) {
       access.lockSubject(c.ownerUserId(), c.organizationId());
       c = find(id);
+      if (c.propertyId() != null) property(c.organizationId(), c.propertyId(), true);
     }
     if (cases.related(actor.id(), id))
       throw DocumentAccessService.forbidden(
@@ -77,6 +88,12 @@ public class VerificationAccessService {
   }
 
   public VerificationDetails details(UUID user, UUID org, VerificationDetails details) {
+    return details(
+        user, org, details, org == null ? VerificationKind.IDENTITY : VerificationKind.BUSINESS);
+  }
+
+  public VerificationDetails details(
+      UUID user, UUID org, VerificationDetails details, VerificationKind kind) {
     if (!Set.of(Locale.getISOCountries()).contains(details.countryCode().toUpperCase(Locale.ROOT)))
       throw DocumentAccessService.invalid("Use an ISO two-letter country code.");
     if (new HashSet<>(details.documentVersionIds()).size() != details.documentVersionIds().size())
@@ -93,11 +110,13 @@ public class VerificationAccessService {
       if (!d.retainUntil().isAfter(clock.instant()))
         throw DocumentAccessService.conflict(
             "Extend evidence retention before submitting it for verification.");
-      if ((org == null && d.category() != DocumentCategory.IDENTITY)
-          || (org != null && d.category() != DocumentCategory.BUSINESS_REGISTRATION))
+      var category =
+          kind == VerificationKind.PROPERTY_OWNERSHIP
+              ? DocumentCategory.PROPERTY_OWNERSHIP
+              : org == null ? DocumentCategory.IDENTITY : DocumentCategory.BUSINESS_REGISTRATION;
+      if (d.category() != category)
         throw DocumentAccessService.invalid(
-            "Use identity scans for identity verification and business registration scans for"
-                + " business verification.");
+            "Choose active scans matching this verification type: " + category + ".");
     }
     return new VerificationDetails(
         details.claimedName().strip(),
@@ -107,6 +126,9 @@ public class VerificationAccessService {
   }
 
   public VerificationStatus effective(VerificationCase c) {
+    if (c.propertyId() != null
+        && c.status() == VerificationStatus.VERIFIED
+        && !cases.currentBusinessName(c)) return VerificationStatus.REVOKED;
     return c.status() == VerificationStatus.VERIFIED && !c.validUntil().isAfter(clock.instant())
         ? VerificationStatus.EXPIRED
         : c.status();

@@ -20,4 +20,6 @@ public record VerificationCase(
     UUID createdBy,
     Instant submittedAt,
     Instant createdAt,
-    Instant updatedAt) {}
+    Instant updatedAt,
+    UUID propertyId,
+    com.zaza.housing.dto.PropertyOwnershipSubject property) {}

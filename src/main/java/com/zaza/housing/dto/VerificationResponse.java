@@ -15,4 +15,5 @@ public record VerificationResponse(
     String resolution,
     boolean assigned,
     Instant createdAt,
-    Instant updatedAt) {}
+    Instant updatedAt,
+    PropertyOwnershipSubject property) {}
