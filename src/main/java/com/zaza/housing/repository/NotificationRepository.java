@@ -32,7 +32,7 @@ public class NotificationRepository {
               rs.getObject("conversation_id", UUID.class),
               rs.getString("conversation_url"),
               rs.getObject("vault_event_id", UUID.class),
-              rs.getString("vault_url"));
+              rs.getString("vault_url"),rs.getObject("caretaker_target_id",UUID.class),rs.getString("caretaker_url"));
     private final JdbcTemplate jdbc;
     public NotificationRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
     public void append(UUID user, UUID application, UUID event, ApplicationEventType type, String message) {

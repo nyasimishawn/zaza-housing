@@ -108,7 +108,7 @@ public class WorkReadService {
       return org;
     }
     if (party == WorkParty.COORDINATOR) {
-      properties.getForManagement(actor, org, property);
+      access.coordinateProperty(actor, org, property, false);
       return property;
     }
     return actor.id();

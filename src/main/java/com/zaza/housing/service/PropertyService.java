@@ -44,13 +44,14 @@ public class PropertyService {
     private final RentalApplicationRepository applications;
     private final LeaseRepository leases;
     private final com.zaza.housing.repository.AgencyRepository agency;
+    private final com.zaza.housing.repository.CaretakerRepository caretakers;
 
     public PropertyService(PropertyRepository properties, OrganizationRepository memberships,
-            OrganizationService organizations, AuditService audit, RentalApplicationRepository applications, LeaseRepository leases, com.zaza.housing.repository.AgencyRepository agency) {
+            OrganizationService organizations, AuditService audit, RentalApplicationRepository applications, LeaseRepository leases, com.zaza.housing.repository.AgencyRepository agency,com.zaza.housing.repository.CaretakerRepository caretakers) {
         this.properties = properties;
         this.memberships = memberships;
         this.organizations = organizations;
-        this.audit = audit; this.applications = applications; this.leases=leases;this.agency=agency;
+        this.audit = audit; this.applications = applications; this.leases=leases;this.agency=agency;this.caretakers=caretakers;
     }
 
     @Transactional
@@ -75,7 +76,7 @@ public class PropertyService {
         if (city != null && (city.isBlank() || city.length() > 100)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "City must contain 1-100 characters.");
         }
-        return properties.listScoped(organizationId,organization.type()==OrganizationType.AGENCY && organization.role()==MembershipRole.MEMBER ? actor.id():null,status,type,city,limit,offset);
+        return properties.listScoped(organizationId,organization.role()==MembershipRole.MEMBER ? actor.id():null,status,type,city,limit,offset);
     }
 
     public Property get(AuthenticatedUser actor, UUID organizationId, UUID id) {
@@ -193,7 +194,7 @@ public class PropertyService {
           requireManager(organization);
           result=properties.findInOrganization(organizationId,id,false).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"Property not found."));
         }
-        if(!write && organization.type()==OrganizationType.AGENCY && organization.role()==MembershipRole.MEMBER && !agency.assigned(organizationId,id,actor.id()))throw new ApiException(HttpStatus.NOT_FOUND,"Property not found.");
+        if(!write && organization.role()==MembershipRole.MEMBER && !caretakers.allowed(organizationId,id,actor.id(),"OPERATIONS") && !(organization.type()==OrganizationType.AGENCY && agency.assigned(organizationId,id,actor.id())))throw new ApiException(HttpStatus.NOT_FOUND,"Property not found.");
         return result;
     }
 
