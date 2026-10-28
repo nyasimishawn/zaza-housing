@@ -184,9 +184,11 @@ public class ServiceProviderService {
         p.details().displayName(),
         p.details().description(),
         p.details().areas(),
-        "NOT_VERIFIED",
+        p.verificationStatus(),
         p.reviewCount(),
-        p.averageRating());
+        p.averageRating(),
+        p.verificationMethod(),
+        p.verificationValidUntil());
   }
 
   public List<PublicServiceProviderResponse> directory(
@@ -210,7 +212,9 @@ public class ServiceProviderService {
                     p.details().areas(),
                     p.verificationStatus(),
                     p.reviewCount(),
-                    p.averageRating()))
+                    p.averageRating(),
+                    p.verificationMethod(),
+                    p.verificationValidUntil()))
         .toList();
   }
 

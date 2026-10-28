@@ -49,6 +49,18 @@ public class ServiceProviderRepository {
       ) rating
       """;
 
+  static String discoverySource() {
+    return "SELECT v.organization_id AS id,v.version,ARRAY(SELECT DISTINCT o.category FROM"
+               + " service_offers o WHERE o.provider_id=v.organization_id AND o.status='ACTIVE'"
+               + " ORDER BY o.category) AS"
+               + " categories,jsonb_build_object('id',v.organization_id,'displayName',v.details->>'displayName','description',v.details->>'description','areas',v.details->'areas','verificationStatus',v.verification_status,'verificationMethod',v.verification_method,'verificationValidUntil',v.verification_valid_until,'reviewCount',v.review_count,'averageRating',v.average_rating)"
+               + " AS body,v.verification_status,v.verification_method,v.verification_valid_until"
+               + " FROM ("
+        + PROFILES
+        + " WHERE p.status='ACTIVE' AND EXISTS(SELECT 1 FROM service_offers o WHERE"
+        + " o.provider_id=p.organization_id AND o.status='ACTIVE')) v";
+  }
+
   public ServiceProviderRepository(JdbcTemplate jdbc, ObjectMapper json, Clock clock) {
     this.clock = clock;
     this.jdbc = jdbc;

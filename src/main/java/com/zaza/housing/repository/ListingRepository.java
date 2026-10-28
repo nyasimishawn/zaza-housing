@@ -48,6 +48,14 @@ public class ListingRepository {
   private final ObjectMapper json;
   private final RowMapper<RentalListing> listing;
 
+  static String discoverySource() {
+    return "SELECT l.id,l.version,l.public_snapshot AS body,l.published_at AS"
+               + " published_at,l.published_amenities AS amenities "
+        + FROM
+        + " WHERE "
+        + VISIBLE;
+  }
+
   public List<java.util.Map<String, Object>> moderationSources(String q, int limit, int offset) {
     return jdbc.queryForList(
         "SELECT l.id,l.version,l.public_snapshot->>'title' AS title,l.public_snapshot->>'city' AS"
@@ -89,15 +97,16 @@ public class ListingRepository {
                     ? null
                     : rs.getTimestamp("published_at").toInstant(),
                 rs.getTimestamp("created_at").toInstant(),
-                rs.getTimestamp("updated_at").toInstant());
+                rs.getTimestamp("updated_at").toInstant(),
+                List.of(json.readValue(rs.getString("amenities"), String[].class)));
   }
 
   public UUID create(UUID property, UUID actor, CreateListingRequest request) {
     UUID id = UUID.randomUUID();
     jdbc.update(
         """
-        INSERT INTO rental_listings(id, property_id, unit_id, title, description, show_exact_location, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO rental_listings(id, property_id, unit_id, title, description, show_exact_location, created_by, amenities)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?::jsonb)
         """,
         id,
         property,
@@ -105,7 +114,11 @@ public class ListingRepository {
         request.details().title().trim(),
         request.details().description().trim(),
         request.details().showExactLocation(),
-        actor);
+        actor,
+        json.writeValueAsString(
+            request.details().amenities() == null
+                ? List.of()
+                : request.details().amenities().stream().map(String::strip).distinct().toList()));
     return id;
   }
 
@@ -187,7 +200,7 @@ public class ListingRepository {
     checkUpdated(
         jdbc.update(
             """
-            UPDATE rental_listings SET title = ?, description = ?, show_exact_location = ?,
+            UPDATE rental_listings SET title = ?, description = ?, show_exact_location = ?, amenities=COALESCE(?::jsonb,amenities),
                 status = CASE WHEN status = 'PUBLISHED' THEN 'WITHDRAWN' ELSE status END,
                 version = version + 1, updated_at = clock_timestamp()
             WHERE property_id = ? AND id = ? AND version = ?
@@ -195,6 +208,10 @@ public class ListingRepository {
             request.details().title().trim(),
             request.details().description().trim(),
             request.details().showExactLocation(),
+            request.details().amenities() == null
+                ? null
+                : json.writeValueAsString(
+                    request.details().amenities().stream().map(String::strip).distinct().toList()),
             property,
             id,
             request.version()));
@@ -209,7 +226,7 @@ public class ListingRepository {
     checkUpdated(
         jdbc.update(
             """
-            UPDATE rental_listings SET status = 'PUBLISHED', publisher_organization_id = ?,
+            UPDATE rental_listings SET status = 'PUBLISHED', published_amenities=amenities, publisher_organization_id = ?,
                 source_property_version = ?, source_unit_version = ?, public_snapshot = CAST(? AS jsonb),
                 published_at = ?, version = version + 1, updated_at = clock_timestamp()
             WHERE property_id = ? AND id = ? AND version = ?
