@@ -138,13 +138,13 @@ class PropertyVideoTests {
     }
 
     @Test
-    void guestsOutsidersAndMembersCannotManageVideos() throws Exception {
+    void guestsOutsidersAndUnassignedMembersCannotReadVideos() throws Exception {
         Inventory inventory = inventory(); Account member = account(); Account outsider = account();
         call("POST", "/api/v1/organizations/" + inventory.organization + "/members", Map.of("email", member.email, "role", "MEMBER"), inventory.owner.token, 201);
         JsonNode video = uploaded(inventory, shortClip(), "phone.mp4", "video/mp4", "Private");
         call("GET", inventory.videos(), null, null, 401);
         call("GET", inventory.videos(), null, outsider.token, 404);
-        binary(video.get("contentUrl").asText(), member.token, 200);
+        binary(video.get("contentUrl").asText(), member.token, 404);
         assertThat(upload(inventory.videos(), shortClip(), "phone.mp4", "video/mp4", "", member.token).statusCode()).isEqualTo(403);
         assertThat(upload(inventory.videos(), shortClip(), "phone.mp4", "video/mp4", "", null).statusCode()).isEqualTo(401);
         call("PUT", videoPath(inventory, video), Map.of("version", 0, "caption", "Denied"), member.token, 403);

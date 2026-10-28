@@ -186,7 +186,7 @@ class PublicListingTests {
         success("POST", members, Map.of("email", member.email, "role", "MEMBER"), inventory.owner.token, 201);
         String id = draft(inventory, false).get("id").asText();
         String path = inventory.listings() + "/" + id;
-        success("GET", path, null, member.token, 200);
+        success("GET", path, null, member.token, 404);
         success("PUT", path, edit(0, details(inventory.tag, true)), member.token, 403);
         success("POST", path + "/publish", publication(0, 1, 0), member.token, 403);
         success("POST", path + "/withdraw", Map.of("version", 0), member.token, 403);
