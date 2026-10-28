@@ -44,9 +44,10 @@ public class VerificationController {
   public List<VerificationResponse> list(
       @AuthenticationPrincipal AuthenticatedUser actor,
       @PathVariable(required = false) UUID organizationId,
+      @RequestParam(required = false) UUID propertyId,
       @RequestParam(defaultValue = "50") int limit,
       @RequestParam(defaultValue = "0") int offset) {
-    return reads.list(actor, organizationId, limit, offset);
+    return reads.list(actor, organizationId, propertyId, limit, offset);
   }
 
   @GetMapping("/status")

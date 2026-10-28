@@ -33,6 +33,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
     assignableTypes = {
       DocumentController.class,
       VerificationController.class,
+      com.zaza.housing.controller.PropertyOwnershipVerificationController.class,
       VerificationAdminController.class,
       TenantProfileController.class,
       TenantApplicationController.class,

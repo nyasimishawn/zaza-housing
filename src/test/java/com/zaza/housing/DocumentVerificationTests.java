@@ -873,6 +873,398 @@ class DocumentVerificationTests {
         .contains("no-store");
   }
 
+  @Test
+  void ownershipReviewIsPropertyBoundPrivateAndExpiresWithoutRepublishing() throws Exception {
+    var f = ownership();
+    var d = upload(f.owner, "PROPERTY_OWNERSHIP");
+    var c = createOwnership(f, d);
+    assertThat(c.get("kind").asText()).isEqualTo("PROPERTY_OWNERSHIP");
+    assertThat(c.get("property").get("propertyId").asText()).isEqualTo(f.property);
+    assertThat(
+            node(call("GET", ownershipStatus(f), null, f.owner.actor, 200)).get("status").asText())
+        .isEqualTo("NOT_VERIFIED");
+    var op = operator();
+    call("GET", admin(c), null, op, 404);
+    c = submit(f.owner, c);
+    claim(c, op);
+    c = current(f.owner, c);
+    var review = node(call("GET", admin(c), null, op, 200));
+    assertThat(review.get("property").get("address").asText())
+        .isEqualTo("Private ownership premises");
+    call("GET", casePath(f.owner, c), null, op, 404);
+    call("POST", admin(c) + "/decide", decision(c, "VERIFY"), op, 200);
+    var badge = call("GET", publicOwnership(f), null, null, 200);
+    assertThat(badge.body())
+        .contains("VERIFIED", "MANUAL_DOCUMENT_REVIEW")
+        .doesNotContain(
+            f.property,
+            "claimedName",
+            "propertyName",
+            "Private ownership premises",
+            "documentVersionIds");
+    assertThat(badge.headers().firstValue("cache-control").orElse("")).contains("no-store");
+    assertThat(
+            node(call("GET", cases(f.owner) + "/status", null, f.owner.actor, 200))
+                .get("status")
+                .asText())
+        .isEqualTo("NOT_VERIFIED");
+    clock.now = clock.now.plus(Duration.ofDays(3));
+    login(f.owner.actor);
+    assertThat(
+            node(call("GET", ownershipStatus(f), null, f.owner.actor, 200)).get("status").asText())
+        .isEqualTo("NOT_VERIFIED");
+    assertThat(node(call("GET", publicOwnership(f), null, null, 200)).get("status").asText())
+        .isEqualTo("NOT_VERIFIED");
+    assertThat(current(f.owner, c).get("status").asText()).isEqualTo("EXPIRED");
+    assertThat(createOwnership(f, d).get("id")).isNotEqualTo(c.get("id"));
+  }
+
+  @Test
+  void ownershipRevocationRemovesBadgeImmediatelyAndRetainsHistory() throws Exception {
+    var f = ownership();
+    var d = upload(f.owner, "PROPERTY_OWNERSHIP");
+    var c = submit(f.owner, createOwnership(f, d));
+    var op = operator();
+    claim(c, op);
+    c = current(f.owner, c);
+    call("POST", admin(c) + "/decide", decision(c, "VERIFY"), op, 200);
+    c = current(f.owner, c);
+    var revoke = review(c);
+    call("POST", admin(c) + "/revoke", revoke, op, 200);
+    call("POST", admin(c) + "/revoke", revoke, op, 200);
+    assertThat(node(call("GET", publicOwnership(f), null, null, 200)).get("status").asText())
+        .isEqualTo("NOT_VERIFIED");
+    assertThat(current(f.owner, c).get("status").asText()).isEqualTo("REVOKED");
+    assertThat(
+            node(call("GET", casePath(f.owner, c) + "/history", null, f.owner.actor, 200)).size())
+        .isGreaterThan(3);
+  }
+
+  @Test
+  void propertyClaimsCoexistWithBusinessAndOtherPropertiesButNeverDuplicateAnActiveClaim()
+      throws Exception {
+    var f = ownership();
+    var d = upload(f.owner, "PROPERTY_OWNERSHIP");
+    var body =
+        Map.of(
+            "requestId",
+            UUID.randomUUID(),
+            "propertyId",
+            f.property,
+            "details",
+            verificationDetails(f.owner, d));
+    var c = node(call("POST", cases(f.owner), body, f.owner.actor, 201));
+    assertThat(node(call("POST", cases(f.owner), body, f.owner.actor, 201)).get("id"))
+        .isEqualTo(c.get("id"));
+    call(
+        "POST",
+        cases(f.owner),
+        Map.of(
+            "requestId",
+            UUID.randomUUID(),
+            "propertyId",
+            f.property,
+            "details",
+            verificationDetails(f.owner, d)),
+        f.owner.actor,
+        409);
+    var registration = upload(f.owner, "BUSINESS_REGISTRATION");
+    createCase(f.owner, registration);
+    String another = createOwnershipProperty(f.owner);
+    call(
+        "POST",
+        cases(f.owner),
+        Map.of(
+            "requestId",
+            UUID.randomUUID(),
+            "propertyId",
+            another,
+            "details",
+            verificationDetails(f.owner, d)),
+        f.owner.actor,
+        201);
+    var rows =
+        node(
+            call(
+                "GET",
+                cases(f.owner) + "?propertyId=" + f.property + "&limit=20",
+                null,
+                f.owner.actor,
+                200));
+    assertThat(rows.size()).isEqualTo(1);
+    assertThat(rows.get(0).get("id")).isEqualTo(c.get("id"));
+    call(
+        "GET", cases(f.owner) + "?propertyId=" + f.property + "&limit=0", null, f.owner.actor, 400);
+    assertThatThrownBy(
+            () ->
+                jdbc.update(
+                    "UPDATE verification_cases SET property_id=? WHERE id=?",
+                    UUID.fromString(another),
+                    id(c)))
+        .isInstanceOf(org.springframework.dao.DataAccessException.class);
+  }
+
+  @Test
+  void ownershipEvidenceRequiresOwningOrganizationCorrectCategoryAndCountry() throws Exception {
+    var f = ownership();
+    var wrong = upload(f.owner, "BUSINESS_REGISTRATION");
+    call(
+        "POST",
+        cases(f.owner),
+        Map.of(
+            "requestId",
+            UUID.randomUUID(),
+            "propertyId",
+            f.property,
+            "details",
+            verificationDetails(f.owner, wrong)),
+        f.owner.actor,
+        400);
+    var other = business();
+    var foreign = upload(other, "PROPERTY_OWNERSHIP");
+    call(
+        "POST",
+        cases(f.owner),
+        Map.of(
+            "requestId",
+            UUID.randomUUID(),
+            "propertyId",
+            f.property,
+            "details",
+            verificationDetails(f.owner, foreign)),
+        f.owner.actor,
+        404);
+    var d = upload(f.owner, "PROPERTY_OWNERSHIP");
+    var details = new HashMap<String, Object>(verificationDetails(f.owner, d));
+    details.put("countryCode", "UG");
+    call(
+        "POST",
+        cases(f.owner),
+        Map.of("requestId", UUID.randomUUID(), "propertyId", f.property, "details", details),
+        f.owner.actor,
+        400);
+    call(
+        "POST",
+        cases(other),
+        Map.of(
+            "requestId",
+            UUID.randomUUID(),
+            "propertyId",
+            f.property,
+            "details",
+            verificationDetails(other, foreign)),
+        other.actor,
+        404);
+    var personal = personal();
+    var personalScan = upload(personal, "PROPERTY_OWNERSHIP");
+    call(
+        "POST",
+        cases(personal),
+        Map.of(
+            "requestId",
+            UUID.randomUUID(),
+            "propertyId",
+            f.property,
+            "details",
+            verificationDetails(personal, personalScan)),
+        personal.actor,
+        400);
+  }
+
+  @Test
+  void currentMembersAndDelegatedAgencyCannotIndependentlyApproveOwnership() throws Exception {
+    var f = ownership();
+    var d = upload(f.owner, "PROPERTY_OWNERSHIP");
+    var c = submit(f.owner, createOwnership(f, d));
+    jdbc.update("UPDATE app_users SET platform_role='PLATFORM_ADMIN' WHERE id=?", f.owner.actor.id);
+    login(f.owner.actor);
+    call("POST", admin(c) + "/claim", review(c), f.owner.actor, 403);
+    var agency = operator();
+    String org = organization(agency, "AGENCY");
+    call(
+        "PATCH",
+        f.propertyPath() + "/management",
+        Map.of("version", 1, "managerOrganizationId", org),
+        f.owner.actor,
+        200);
+    call("POST", admin(c) + "/claim", review(c), agency, 403);
+    call(
+        "GET",
+        "/api/v1/organizations/" + org + "/verifications?propertyId=" + f.property,
+        null,
+        agency,
+        404);
+    call(
+        "GET",
+        "/api/v1/organizations/" + org + "/properties/" + f.property + "/ownership-verification",
+        null,
+        agency,
+        200);
+    var independent = operator();
+    claim(c, independent);
+    jdbc.update(
+        "INSERT INTO organization_memberships(organization_id,user_id,role) VALUES (?,?,'MEMBER')",
+        UUID.fromString(f.owner.org),
+        independent.id);
+    call("GET", admin(c), null, independent, 403);
+    call("POST", admin(c) + "/release", review(current(f.owner, c)), independent, 200);
+  }
+
+  @Test
+  void changedPropertyIdentityPreventsApprovalAndInvalidatesExistingBadge() throws Exception {
+    var f = ownership();
+    var d = upload(f.owner, "PROPERTY_OWNERSHIP");
+    var c = submit(f.owner, createOwnership(f, d));
+    var op = operator();
+    claim(c, op);
+    c = current(f.owner, c);
+    jdbc.update(
+        "UPDATE properties SET address='Changed premises' WHERE id=?", UUID.fromString(f.property));
+    call("POST", admin(c) + "/decide", decision(c, "VERIFY"), op, 409);
+    call("POST", admin(c) + "/decide", decision(c, "REQUEST_CHANGES"), op, 200);
+    c = current(f.owner, c);
+    call("POST", casePath(f.owner, c) + "/submit", submitBody(c), f.owner.actor, 409);
+    call("POST", casePath(f.owner, c) + "/withdraw", command(c), f.owner.actor, 200);
+    c = submit(f.owner, createOwnership(f, d));
+    claim(c, op);
+    c = current(f.owner, c);
+    call("POST", admin(c) + "/decide", decision(c, "VERIFY"), op, 200);
+    assertThat(node(call("GET", publicOwnership(f), null, null, 200)).get("status").asText())
+        .isEqualTo("VERIFIED");
+    jdbc.update(
+        "UPDATE properties SET name='Changed property name' WHERE id=?",
+        UUID.fromString(f.property));
+    assertThat(node(call("GET", publicOwnership(f), null, null, 200)).get("status").asText())
+        .isEqualTo("NOT_VERIFIED");
+    assertThat(current(f.owner, c).get("status").asText()).isEqualTo("REVOKED");
+    createOwnership(f, d);
+  }
+
+  @Test
+  void ownershipRetryRechecksMembershipAndPublicBadgeRespectsListingVisibility() throws Exception {
+    var f = ownership();
+    var d = upload(f.owner, "PROPERTY_OWNERSHIP");
+    var member = account();
+    jdbc.update(
+        "INSERT INTO organization_memberships(organization_id,user_id,role) VALUES (?,?,'ADMIN')",
+        UUID.fromString(f.owner.org),
+        member.id);
+    var body =
+        Map.of(
+            "requestId",
+            UUID.randomUUID(),
+            "propertyId",
+            f.property,
+            "details",
+            verificationDetails(f.owner, d));
+    call("POST", cases(f.owner), body, member, 201);
+    jdbc.update(
+        "DELETE FROM organization_memberships WHERE organization_id=? AND user_id=?",
+        UUID.fromString(f.owner.org),
+        member.id);
+    call("POST", cases(f.owner), body, member, 404);
+    call("GET", publicOwnership(f), null, null, 200);
+    call(
+        "POST",
+        f.propertyPath() + "/listings/" + f.listing + "/withdraw",
+        Map.of("version", 1),
+        f.owner.actor,
+        200);
+    call("GET", publicOwnership(f), null, null, 404);
+  }
+
+  private record Ownership(VaultOwner owner, String property, String listing) {
+    String propertyPath() {
+      return "/api/v1/organizations/" + owner.org + "/properties/" + property;
+    }
+  }
+
+  private String createOwnershipProperty(VaultOwner f) throws Exception {
+    String base = "/api/v1/organizations/" + f.org + "/properties";
+    var p =
+        node(
+            call(
+                "POST",
+                base,
+                Map.of(
+                    "name",
+                    "Ownership property",
+                    "type",
+                    "HOUSE",
+                    "countryCode",
+                    "KE",
+                    "city",
+                    "Nairobi",
+                    "address",
+                    "Private ownership premises"),
+                f.actor,
+                201));
+    call(
+        "PATCH",
+        base + "/" + p.get("id").asText() + "/status",
+        Map.of("version", 0, "status", "ACTIVE"),
+        f.actor,
+        200);
+    return p.get("id").asText();
+  }
+
+  private Ownership ownership() throws Exception {
+    var actor = account();
+    var f = new VaultOwner(actor, organization(actor, "LANDLORD"));
+    var p = createOwnershipProperty(f);
+    String path = "/api/v1/organizations/" + f.org + "/properties/" + p;
+    var unit = node(call("POST", path + "/units", unitDetails(), actor, 201));
+    var listing =
+        node(
+            call(
+                "POST",
+                path + "/listings",
+                Map.of(
+                    "unitId",
+                    unit.get("id").asText(),
+                    "details",
+                    Map.of(
+                        "title",
+                        "Ownership rental",
+                        "description",
+                        "A current public rental offer.",
+                        "showExactLocation",
+                        false)),
+                actor,
+                201));
+    call(
+        "POST",
+        path + "/listings/" + listing.get("id").asText() + "/publish",
+        Map.of("version", 0, "propertyVersion", 1, "unitVersion", 0),
+        actor,
+        200);
+    return new Ownership(f, p, listing.get("id").asText());
+  }
+
+  private JsonNode createOwnership(Ownership f, JsonNode d) throws Exception {
+    return node(
+        call(
+            "POST",
+            cases(f.owner),
+            Map.of(
+                "requestId",
+                UUID.randomUUID(),
+                "propertyId",
+                f.property,
+                "details",
+                verificationDetails(f.owner, d)),
+            f.owner.actor,
+            201));
+  }
+
+  private String ownershipStatus(Ownership f) {
+    return f.propertyPath() + "/ownership-verification";
+  }
+
+  private String publicOwnership(Ownership f) {
+    return "/api/v1/listings/" + f.listing + "/ownership-verification";
+  }
+
   private record VaultOwner(Account actor, String org) {}
 
   private VaultOwner personal() throws Exception {
