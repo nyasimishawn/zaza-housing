@@ -31,6 +31,13 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
 
 @RestControllerAdvice(
     assignableTypes = {
+      com.zaza.housing.controller.AdministrationController.class,
+      com.zaza.housing.controller.SupportController.class,
+      com.zaza.housing.controller.SupportAdminController.class,
+      com.zaza.housing.controller.AccountSecurityController.class,
+      com.zaza.housing.controller.AccountRecoveryController.class,
+      com.zaza.housing.controller.AuthController.class,
+      com.zaza.housing.controller.AdminController.class,
       com.zaza.housing.controller.AgencyCrmController.class,
       com.zaza.housing.controller.AgencyFinanceController.class,
       com.zaza.housing.controller.AgencyMandateController.class,

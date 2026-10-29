@@ -37,6 +37,15 @@ management:
     health:
       show-details: never
 zaza:
+  security:
+    require-admin-mfa: true
+    mail-mode: ${ZAZA_SECURITY_MAIL_MODE:off}
+    smtp-host: ${ZAZA_SMTP_HOST:}
+    smtp-port: ${ZAZA_SMTP_PORT:587}
+    smtp-user: ${ZAZA_SMTP_USER:}
+    smtp-password: ${ZAZA_SMTP_PASSWORD:}
+    mail-from: ${ZAZA_SECURITY_MAIL_FROM:}
+    local-mail-directory: ${ZAZA_SECURITY_LOCAL_MAIL_DIRECTORY:.local-security-mail}
   documents:
     directory: ${ZAZA_DOCUMENT_DIRECTORY:.local-documents}
     keys: ${ZAZA_DOCUMENT_KEYS:}

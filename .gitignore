@@ -49,3 +49,5 @@ http-client.private.env.json
 .tools/
 
 .local-documents/
+
+.local-security-mail/

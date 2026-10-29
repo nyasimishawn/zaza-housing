@@ -28,7 +28,11 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
       throws ServletException, IOException {
     boolean protectedEndpoint =
         "POST".equals(request.getMethod())
-            && (request.getServletPath().startsWith("/api/v1/admin/verifications/")
+            && (request.getServletPath().startsWith("/api/v1/me/support/")
+                || request.getServletPath().startsWith("/api/v1/auth/")
+                || request.getServletPath().startsWith("/api/v1/me/security/")
+                || request.getServletPath().startsWith("/api/v1/admin/operations/")
+                || request.getServletPath().startsWith("/api/v1/admin/verifications/")
                 || request
                     .getServletPath()
                     .matches("/api/v1/(me|organizations/[^/]+)/verifications/[^/]+/submit")
