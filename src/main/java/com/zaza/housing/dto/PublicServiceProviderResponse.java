@@ -11,4 +11,26 @@ public record PublicServiceProviderResponse(
     List<ServiceArea> areas,
     String verificationStatus,
     long reviewCount,
-    BigDecimal averageRating) {}
+    BigDecimal averageRating,
+    String verificationMethod,
+    java.time.Instant verificationValidUntil) {
+  public PublicServiceProviderResponse(
+      UUID id,
+      String displayName,
+      String description,
+      List<ServiceArea> areas,
+      String verificationStatus,
+      long reviewCount,
+      BigDecimal averageRating) {
+    this(
+        id,
+        displayName,
+        description,
+        areas,
+        verificationStatus,
+        reviewCount,
+        averageRating,
+        null,
+        null);
+  }
+}

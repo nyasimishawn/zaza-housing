@@ -1,0 +1,1 @@
+ALTER TABLE rental_listings ADD COLUMN amenities JSONB NOT NULL DEFAULT '[]'::jsonb CHECK(jsonb_typeof(amenities)='array' AND jsonb_array_length(amenities)<=30), ADD COLUMN published_amenities JSONB NOT NULL DEFAULT '[]'::jsonb CHECK(jsonb_typeof(published_amenities)='array' AND jsonb_array_length(published_amenities)<=30);

@@ -51,3 +51,5 @@ http-client.private.env.json
 .local-documents/
 
 .local-security-mail/
+
+.local-map-tiles/
