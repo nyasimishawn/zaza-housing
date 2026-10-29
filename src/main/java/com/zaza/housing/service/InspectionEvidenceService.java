@@ -70,7 +70,7 @@ public class InspectionEvidenceService {
       long version,
       String caption,
       MultipartFile file) {
-    var lease = access.lease(actor, org, property, leaseId, true);
+    var lease = access.operationalLease(actor, org, property, leaseId, true);
     if (org != null) access.manager(actor, org, lease);
     var report = access.report(lease, id, org == null);
     if (version < 0 || caption == null || caption.isBlank() || caption.length() > 200)
@@ -156,7 +156,7 @@ public class InspectionEvidenceService {
       UUID id,
       int limit,
       int offset) {
-    var lease = access.lease(actor, org, property, leaseId, false);
+    var lease = access.operationalLease(actor, org, property, leaseId, false);
     access.report(lease, id, org == null);
     Pagination.validate(limit, offset);
     return evidence.list(id, org == null, limit, offset).stream().map(this::response).toList();
@@ -165,7 +165,7 @@ public class InspectionEvidenceService {
   @Transactional
   public ImageContent content(
       AuthenticatedUser actor, UUID org, UUID property, UUID leaseId, UUID id, UUID image) {
-    var lease = access.lease(actor, org, property, leaseId, true);
+    var lease = access.operationalLease(actor, org, property, leaseId, true);
     access.report(lease, id, org == null);
     var e =
         evidence

@@ -214,7 +214,7 @@ class MaintenanceServiceTests {
   }
 
   @Test
-  void guestsOutsidersAndOrdinaryPropertyMembersCannotReadWork() throws Exception {
+  void guestsOutsidersAndUnassignedPropertyMembersCannotReadWork() throws Exception {
     var c = maintenance();
     Account other = account(), member = account();
     call(
@@ -226,7 +226,7 @@ class MaintenanceServiceTests {
     call("GET", c.tenant(), null, null, 401);
     call("GET", c.tenant(), null, other, 404);
     call("GET", c.manager(), null, other, 404);
-    call("GET", c.manager(), null, member, 403);
+    call("GET", c.manager(), null, member, 404);
     call("GET", c.manager() + "/history", null, other, 404);
     assertThat(node(call("GET", "/api/v1/me/work-requests", null, other, 200)).size()).isZero();
   }

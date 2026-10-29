@@ -296,7 +296,7 @@ class InspectionTests {
   }
 
   @Test
-  void organizationMembersWithoutManagementRoleCannotReview() throws Exception {
+  void organizationMembersWithoutInspectionCapabilityCannotReview() throws Exception {
     var f = signedTracked();
     var r = create(f, "MOVE_IN");
     var member = account();
@@ -304,8 +304,8 @@ class InspectionTests {
         "INSERT INTO organization_memberships(organization_id,user_id,role) VALUES (?,?,'MEMBER')",
         UUID.fromString(f.i.organization),
         member.id);
-    call("GET", m(f, r), null, member, 403);
-    call("POST", m(f, r) + "/share", review(r), member, 403);
+    call("GET", m(f, r), null, member, 404);
+    call("POST", m(f, r) + "/share", review(r), member, 404);
   }
 
   @Test

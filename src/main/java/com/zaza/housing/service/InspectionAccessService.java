@@ -13,10 +13,18 @@ import org.springframework.stereotype.Service;
 public class InspectionAccessService {
   private final LeaseAccessService leases;
   private final InspectionRepository inspections;
+  private final CaretakerAccessService caretakers;
+  private final com.zaza.housing.repository.LeaseRepository records;
 
-  public InspectionAccessService(LeaseAccessService leases, InspectionRepository inspections) {
+  public InspectionAccessService(
+      LeaseAccessService leases,
+      InspectionRepository inspections,
+      CaretakerAccessService caretakers,
+      com.zaza.housing.repository.LeaseRepository records) {
     this.leases = leases;
     this.inspections = inspections;
+    this.caretakers = caretakers;
+    this.records = records;
   }
 
   public RentalLease lease(
@@ -32,6 +40,20 @@ public class InspectionAccessService {
         LeaseStatus.COMPLETED,
         LeaseStatus.TERMINATED);
     return lease;
+  }
+
+  public RentalLease operationalLease(
+      AuthenticatedUser a, UUID org, UUID property, UUID id, boolean lock) {
+    if (org == null) return lease(a, null, null, id, lock);
+    var o = caretakers.organization(a, org, lock);
+    caretakers.property(a, org, property, "INSPECTIONS", lock);
+    var l = records.scoped(property, id).orElseThrow(CaretakerAccessService::missing);
+    if (!caretakers.manager(o) && a.id().equals(l.tenantId()))
+      throw WorkAccessService.forbidden(
+          "A caretaker cannot inspect their own tenancy as the manager.");
+    LeaseAccessService.state(
+        l, LeaseStatus.SIGNED, LeaseStatus.ACTIVE, LeaseStatus.COMPLETED, LeaseStatus.TERMINATED);
+    return l;
   }
 
   public LeaseInspection report(RentalLease lease, UUID id, boolean tenant) {

@@ -105,7 +105,7 @@ public class InspectionService {
       UUID property,
       UUID leaseId,
       CreateInspectionRequest request) {
-    var lease = access.lease(actor, org, property, leaseId, true);
+    var lease = access.operationalLease(actor, org, property, leaseId, true);
     access.manager(actor, org, lease);
     var replay = activity.replay(actor, leaseId, request.requestId(), "CREATED", request);
     if (replay.isPresent()) return reads.response(access.report(lease, replay.get(), false), false);
@@ -152,7 +152,7 @@ public class InspectionService {
       UUID leaseId,
       UUID id,
       ReviseInspectionRequest request) {
-    var lease = access.lease(actor, org, property, leaseId, true);
+    var lease = access.operationalLease(actor, org, property, leaseId, true);
     access.manager(actor, org, lease);
     var report = access.report(lease, id, false);
     var body = body(id, request);
@@ -191,7 +191,7 @@ public class InspectionService {
       UUID leaseId,
       UUID id,
       ReviewInspectionRequest request) {
-    var lease = access.lease(actor, org, property, leaseId, true);
+    var lease = access.operationalLease(actor, org, property, leaseId, true);
     access.manager(actor, org, lease);
     auth.reauthenticate(actor, request.password());
     var report = access.report(lease, id, false);

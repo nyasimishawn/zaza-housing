@@ -569,7 +569,16 @@ public class CaretakerRepository {
         "/api/v1/organizations/"
             + org
             + "/caretaker/"
-            + (kind.equals("GRANT") ? "assignments/" : "tasks/")
+            + (kind.equals("GRANT")
+                ? "assignments/"
+                : kind.equals("NOTICE")
+                    ? "properties/"
+                        + jdbc.queryForObject(
+                            "SELECT property_id FROM caretaker_events WHERE id=?",
+                            UUID.class,
+                            event)
+                        + "/notices/"
+                    : "tasks/")
             + target);
   }
 

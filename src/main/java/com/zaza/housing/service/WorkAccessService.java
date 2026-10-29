@@ -19,16 +19,19 @@ public class WorkAccessService {
   private final PropertyService properties;
   private final ServiceProviderService providers;
   private final OrganizationRepository organizations;
+  private final CaretakerAccessService caretakers;
 
   public WorkAccessService(
       WorkRequestRepository work,
       PropertyService properties,
       ServiceProviderService providers,
-      OrganizationRepository organizations) {
+      OrganizationRepository organizations,
+      CaretakerAccessService caretakers) {
     this.work = work;
     this.properties = properties;
     this.providers = providers;
     this.organizations = organizations;
+    this.caretakers = caretakers;
   }
 
   public WorkAccess get(
@@ -40,11 +43,11 @@ public class WorkAccessService {
       boolean lock) {
     var current = find(id);
     if (party == WorkParty.COORDINATOR) {
-      if (lock) properties.lockForManagement(actor, organization, property);
-      else properties.getForManagement(actor, organization, property);
+      coordinateProperty(actor, organization, property, lock);
       current = find(id);
       if (current.kind() != WorkKind.MAINTENANCE || !current.propertyId().equals(property))
         throw missing("Work request not found.");
+      independent(actor, organization, current.tenantId());
     } else if (party == WorkParty.CUSTOMER) {
       if (!current.tenantId().equals(actor.id())) throw missing("Work request not found.");
       if (lock) properties.lockForApplication(current.propertyId());
@@ -62,6 +65,21 @@ public class WorkAccessService {
     return new WorkAccess(current, party, organization);
   }
 
+  public com.zaza.housing.model.Property coordinateProperty(
+      AuthenticatedUser actor, UUID org, UUID property, boolean lock) {
+    return caretakers.property(actor, org, property, "MAINTENANCE", lock);
+  }
+
+  public void independent(AuthenticatedUser actor, UUID org, UUID tenant) {
+    if (actor.id().equals(tenant)
+        && !caretakers.manager(caretakers.organization(actor, org, false)))
+      throw forbidden("Another caretaker must coordinate your own tenancy work.");
+  }
+
+  public void manager(AuthenticatedUser actor, WorkAccess a) {
+    caretakers.requireManager(caretakers.organization(actor, a.organizationId(), false));
+  }
+
   public void providerLock(WorkRequest request) {
     if (request.providerId() != null) organizations.lock(request.providerId());
   }
@@ -71,6 +89,8 @@ public class WorkAccessService {
   }
 
   public void payer(AuthenticatedUser actor, WorkAccess access) {
+    if (access.work().kind() != WorkKind.SERVICE_BOOKING && access.party() == WorkParty.COORDINATOR)
+      manager(actor, access);
     if (access.work().kind() == WorkKind.SERVICE_BOOKING) {
       if (access.party() != WorkParty.CUSTOMER)
         throw forbidden("Only the booking customer can authorize the quote.");
