@@ -2,6 +2,8 @@
 
 Java 24 / Spring Boot 4.1.1 / PostgreSQL. The existing Gradle wrapper is retained.
 
+Team invitations, notification preferences, reminders and optional email/SMS/push delivery are described in the [notifications contract](docs/notifications-team-invitations-contract.md).
+
 ## Code structure
 
 All features use shared layer packages under `src/main/java/com/zaza/housing`:

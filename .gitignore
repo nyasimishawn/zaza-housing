@@ -53,3 +53,5 @@ http-client.private.env.json
 .local-security-mail/
 
 .local-map-tiles/
+
+.local-notification-deliveries/
