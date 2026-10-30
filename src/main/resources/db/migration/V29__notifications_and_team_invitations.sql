@@ -94,7 +94,9 @@ CREATE FUNCTION notification_category(t TEXT) RETURNS TEXT LANGUAGE SQL IMMUTABL
  WHEN t LIKE 'VAULT_%' OR t LIKE 'DOCUMENT_%' OR t LIKE 'VERIFICATION_%' OR t LIKE 'OWNERSHIP_%' THEN 'DOCUMENTS'
  WHEN t LIKE 'APPLICATION_%' OR t LIKE 'LEASE_%' OR t LIKE 'INSPECTION_%' THEN 'RENTAL' ELSE 'GENERAL' END
 $$;
-UPDATE in_app_notifications SET category=CASE WHEN notification_category(type)<>'GENERAL' THEN notification_category(type)
+UPDATE in_app_notifications n SET category=CASE
+ WHEN n.work_request_id IS NOT NULL AND EXISTS(SELECT 1 FROM work_requests w WHERE w.id=n.work_request_id AND w.kind='SERVICE_BOOKING') THEN 'SERVICES'
+ WHEN notification_category(type)<>'GENERAL' THEN notification_category(type)
  WHEN billing_event_id IS NOT NULL THEN 'BILLING' WHEN service_finance_event_id IS NOT NULL THEN 'SERVICES'
  WHEN conversation_id IS NOT NULL THEN 'MESSAGES' WHEN work_request_id IS NOT NULL OR caretaker_event_id IS NOT NULL THEN 'MAINTENANCE'
  WHEN vault_event_id IS NOT NULL THEN 'DOCUMENTS' WHEN lease_id IS NOT NULL OR application_id IS NOT NULL THEN 'RENTAL' ELSE 'GENERAL' END;
@@ -106,6 +108,8 @@ CREATE FUNCTION classify_notification() RETURNS trigger LANGUAGE plpgsql AS $$ B
    WHEN NEW.work_request_id IS NOT NULL OR NEW.caretaker_event_id IS NOT NULL THEN 'MAINTENANCE'
    WHEN NEW.vault_event_id IS NOT NULL THEN 'DOCUMENTS' WHEN NEW.lease_id IS NOT NULL OR NEW.application_id IS NOT NULL THEN 'RENTAL' ELSE 'GENERAL' END;
  END IF;
+ IF NEW.work_request_id IS NOT NULL AND EXISTS(SELECT 1 FROM work_requests w WHERE w.id=NEW.work_request_id AND w.kind='SERVICE_BOOKING')
+ THEN NEW.category='SERVICES';END IF;
  IF EXISTS(SELECT 1 FROM notification_preferences WHERE user_id=NEW.user_id AND category=NEW.category AND NOT in_app)
  THEN NEW.archived_at=now();END IF;
  RETURN NEW;

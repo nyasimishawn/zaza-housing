@@ -498,18 +498,13 @@ class NotificationsAndInvitationsTests extends AdministrationTestSupport {
   void supportUpdatesUseTheSamePreferenceAndDeliveryPipeline() throws Exception {
     var a = verified();
     ok("PUT", N + "/settings", preferences(a, "SUPPORT", true, false, false), a.token(), 200);
-    var c = createCase(a, "SUPPORT", null);
-    UUID caseId = UUID.fromString(c.get("id").asText());
-    jdbc.update(
-        "INSERT INTO support_notifications(id,user_id,case_id,message,created_at)"
-            + " VALUES(?,?,?,?,now())",
-        UUID.randomUUID(),
-        a.id(),
-        caseId,
-        "A private support update");
+    createCase(a, "SUPPORT", null);
     var updates = ok("GET", N + "?category=SUPPORT", null, a.token(), 200);
     assertThat(updates.size()).isEqualTo(1);
-    assertThat(updates.get(0).get("message").asText()).doesNotContain("A private support update");
+    assertThat(updates.get(0).get("message").asText())
+        .isEqualTo(
+            "A support case you follow was updated. Open your private support updates for"
+                + " details.");
     assertThat(
             jdbc.queryForObject(
                 "SELECT count(*) FROM notification_deliveries WHERE user_id=? AND"
