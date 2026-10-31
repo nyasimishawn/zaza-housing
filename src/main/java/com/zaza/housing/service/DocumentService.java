@@ -9,6 +9,7 @@ import com.zaza.housing.enums.DocumentStatus;
 import com.zaza.housing.exception.ApiException;
 import com.zaza.housing.model.AuthenticatedUser;
 import com.zaza.housing.model.VaultDocument;
+import com.zaza.housing.model.ProcessedDocument;
 import com.zaza.housing.repository.DocumentRepository;
 import com.zaza.housing.repository.LocalDocumentStorageRepository;
 import com.zaza.housing.util.DocumentCryptography;
@@ -22,6 +23,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
@@ -37,8 +40,11 @@ public class DocumentService {
   private final LocalDocumentStorageRepository storage;
   private final DocumentCryptography crypto;
   private final AuthService auth;
+  private final com.zaza.housing.repository.AuthRepository users;
   private final Clock clock;
   private final int uploadsPerHour;
+  private final DocumentProcessingService processing;
+  private final TransactionTemplate transactions;
 
   public DocumentService(
       DocumentAccessService access,
@@ -48,7 +54,10 @@ public class DocumentService {
       LocalDocumentStorageRepository storage,
       DocumentCryptography crypto,
       AuthService auth,
+      com.zaza.housing.repository.AuthRepository users,
       Clock clock,
+      DocumentProcessingService processing,
+      PlatformTransactionManager manager,
       @Value("${zaza.documents.uploads-per-hour:20}") int uploadsPerHour) {
     this.access = access;
     this.documents = documents;
@@ -57,22 +66,41 @@ public class DocumentService {
     this.storage = storage;
     this.crypto = crypto;
     this.auth = auth;
+    this.users = users;
     this.clock = clock;
+    this.processing = processing;
+    this.transactions = new TransactionTemplate(manager);
     if (uploadsPerHour < 1 || uploadsPerHour > 1000)
       throw new IllegalArgumentException("Document upload quota must be between 1 and 1000.");
     this.uploadsPerHour = uploadsPerHour;
   }
 
-  @Transactional
   public DocumentResponse upload(
       AuthenticatedUser actor,
       UUID org,
       UUID id,
       DocumentUploadMetadata request,
       MultipartFile file) {
+    transactions.executeWithoutResult(status -> {
+      if(users.findById(actor.id()).isEmpty())throw new ApiException(HttpStatus.FORBIDDEN,"The document owner is no longer active.");
+    access.owner(actor, org, true);
+      crypto.requireConfigured();
+      if (id != null) {
+        var existing = access.own(actor, org, id, false);
+        access.active(existing);
+      }
+    });
+    // Untrusted PDF decoding never holds a database connection or subject lock.
+    var processed = processing.process(file);
+    return transactions.execute(status -> persistUpload(actor, org, id, request, processed));
+  }
+
+  private DocumentResponse persistUpload(AuthenticatedUser actor, UUID org, UUID id,
+      DocumentUploadMetadata request, ProcessedDocument processed) {
+    if(users.findById(actor.id()).isEmpty())throw new ApiException(HttpStatus.FORBIDDEN,"The document owner is no longer active.");
     access.owner(actor, org, true);
     crypto.requireConfigured();
-    var image = ImageProcessor.processPrivate(file);
+    var image = processed.content();
     String hash = DocumentCryptography.hash(image.bytes());
     String scope = DocumentAccessService.scope(org == null ? actor.id() : null, org);
     String action = id == null ? "DOCUMENT_UPLOADED" : "DOCUMENT_VERSION_ADDED";
@@ -83,7 +111,7 @@ public class DocumentService {
             "request",
             request,
             "contentHash",
-            hash);
+            processed.requestHash());
     var replay = activity.replay(actor, scope, request.requestId(), action, body);
     if (replay.isPresent()) return reads.response(access.own(actor, org, replay.get(), false));
     if (documents.uploads(scope, clock.instant().minus(Duration.ofHours(1))) >= uploadsPerHour)
@@ -153,6 +181,7 @@ public class DocumentService {
         key,
         encrypted.keyId(),
         image,
+        processed.pageCount(),
         hash,
         encrypted.bytes().length,
         actor.id(),

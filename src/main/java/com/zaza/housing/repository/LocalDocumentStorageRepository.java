@@ -39,7 +39,7 @@ public class LocalDocumentStorageRepository {
     Path path = path(key);
     if (Files.isSymbolicLink(path)
         || !Files.isRegularFile(path)
-        || expectedSize > 10485860
+        || expectedSize > 20971620
         || Files.size(path) != expectedSize) throw new IOException("Document content unavailable");
     return Files.readAllBytes(path);
   }

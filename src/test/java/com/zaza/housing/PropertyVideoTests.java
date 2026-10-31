@@ -47,6 +47,7 @@ class PropertyVideoTests {
     @Autowired ObjectMapper json;
     @Autowired JdbcTemplate jdbc;
     @Autowired PausingVideoProcessor pausing;
+    @Autowired com.zaza.housing.service.VideoUploadService queue;
     @DynamicPropertySource static void videos(DynamicPropertyRegistry registry) { registry.add("zaza.videos.directory", () -> VIDEO_ROOT.toString()); }
 
 
@@ -279,6 +280,93 @@ class PropertyVideoTests {
         assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofSeconds(5));
     }
 
+
+    @Test void queuedUploadsAreIdempotentAndProducePrivateIntegrityCheckedPosters() throws Exception {
+        var f=inventory(); byte[] clip=shortClip(); UUID request=UUID.randomUUID();
+        var job=node(queued(f,clip,request,"Tour",202));
+        var duplicate=node(queued(f,clip,request,"Tour",202));
+        assertThat(duplicate.get("id")).isEqualTo(job.get("id"));
+        queued(f,clip,request,"Changed",409);
+        assertThat(queue.processOne()).isTrue();
+        var ready=node(call("GET",f.propertyPath()+"/video-uploads/"+job.get("id").asText(),null,f.owner.token,200));
+        assertThat(ready.get("status").asText()).isEqualTo("READY");
+        assertThat(ready.get("progress").asInt()).isEqualTo(100);
+        String path=f.videos()+"/"+ready.get("videoId").asText();
+        var video=node(call("GET",path,null,f.owner.token,200));
+        byte[] poster=binary(path+"/poster",f.owner.token,200).body();
+        assertThat(java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(poster))).isEqualTo(video.get("posterHash").asText());
+        assertThat(poster.length).isEqualTo(video.get("posterSize").asInt());
+        assertThat(javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(poster))).isNotNull();
+        binary(path+"/poster",null,401);binary(path+"/poster",account().token,404);
+        binary(publicVideo(f,video)+"/poster",null,404);
+        publish(f,0,List.of(reference(video,0)),200);
+        assertThat(binary(publicVideo(f,video)+"/poster",null,200).body()).isEqualTo(poster);
+        var selection=node(call("GET",f.listingPath()+"/media-selection",null,f.owner.token,200));
+        assertThat(selection.get("listingVersion").asInt()).isEqualTo(1);
+        assertThat(selection.get("videos").get(0).get("id").asText()).isEqualTo(video.get("id").asText());
+        call("PUT",path,Map.of("version",0,"caption","Changed tour"),f.owner.token,200);
+        binary(publicVideo(f,video)+"/poster",null,404);
+        assertThat(node(call("GET",f.listingPath()+"/media-selection",null,f.owner.token,200)).get("videos").get(0).get("version").asInt()).isZero();
+        assertThat(jdbc.queryForObject("SELECT source_deleted FROM property_video_uploads WHERE id=?",Boolean.class,UUID.fromString(job.get("id").asText()))).isTrue();
+    }
+    @Test void queuedCancellationAndRevokedAccessCannotPublishAClip() throws Exception {
+        var f=inventory();var job=node(queued(f,shortClip(),UUID.randomUUID(),"Cancel",202));
+        String path=f.propertyPath()+"/video-uploads/"+job.get("id").asText();
+        call("POST",path+"/cancel",Map.of("version",0),account().token,404);
+        call("POST",path+"/cancel",Map.of("version",0),f.owner.token,200);
+        assertThat(queue.processOne()).isFalse();
+        call("POST",path+"/retry",Map.of("version",1),f.owner.token,409);
+        var second=node(queued(f,shortClip(),UUID.randomUUID(),"Revoked",202));
+        call("PATCH",f.propertyPath()+"/status",Map.of("version",1,"status","ARCHIVED"),f.owner.token,200);
+        assertThat(queue.processOne()).isTrue();
+        var failed=node(call("GET",f.propertyPath()+"/video-uploads/"+second.get("id").asText(),null,f.owner.token,200));
+        assertThat(failed.get("failureCode").asText()).isEqualTo("SOURCE_CHANGED");
+        assertThat(failed.get("retryAllowed").asBoolean()).isFalse();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM property_videos WHERE property_id=?",Integer.class,UUID.fromString(f.property))).isZero();
+    }
+    @Test void invalidQueuedMediaFailsWithoutCreatingVideoAndPendingQuotaIsBounded() throws Exception {
+        var f=inventory();var invalid=node(queued(f,"not a video".getBytes(StandardCharsets.UTF_8),UUID.randomUUID(),"Invalid",202));
+        assertThat(queue.processOne()).isTrue();
+        var failed=node(call("GET",f.propertyPath()+"/video-uploads/"+invalid.get("id").asText(),null,f.owner.token,200));
+        assertThat(failed.get("status").asText()).isEqualTo("FAILED");assertThat(failed.get("failureCode").asText()).isEqualTo("INVALID_MEDIA");
+        byte[] clip=shortClip();for(int i=0;i<3;i++)queued(f,clip,UUID.randomUUID(),"Pending",202);
+        queued(f,clip,UUID.randomUUID(),"Too many",409);
+        var jobs=node(call("GET",f.propertyPath()+"/video-uploads",null,f.owner.token,200));
+        for(var job:jobs)if(job.get("status").asText().equals("QUEUED"))call("POST",f.propertyPath()+"/video-uploads/"+job.get("id").asText()+"/cancel",Map.of("version",0),f.owner.token,200);
+    }
+    @Test void cancellationAfterRealEncodingCannotCommitAVideo() throws Exception {
+        var f=inventory();var job=node(queued(f,shortClip(),UUID.randomUUID(),"Cancel during encode",202));
+        pausing.pause();var processing=CompletableFuture.supplyAsync(queue::processOne);
+        try{
+            assertThat(pausing.ready.await(20,TimeUnit.SECONDS)).isTrue();
+            String path=f.propertyPath()+"/video-uploads/"+job.get("id").asText();
+            call("POST",path+"/cancel",Map.of("version",0),f.owner.token,409);
+            call("POST",path+"/cancel",Map.of("version",1),f.owner.token,200);
+        }finally{pausing.resume();}
+        assertThat(processing.get(20,TimeUnit.SECONDS)).isTrue();
+        var result=node(call("GET",f.propertyPath()+"/video-uploads/"+job.get("id").asText(),null,f.owner.token,200));
+        assertThat(result.get("status").asText()).isEqualTo("CANCELLED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM property_videos WHERE property_id=?",Integer.class,UUID.fromString(f.property))).isZero();
+    }
+    @Test void retainedSourceRetryUsesSameJobWithCooldownAndASecondProcessingAttempt() throws Exception {
+        var f=inventory();var job=node(queued(f,shortClip(),UUID.randomUUID(),"Retry",202));
+        pausing.failNext=true;assertThat(queue.processOne()).isTrue();
+        String path=f.propertyPath()+"/video-uploads/"+job.get("id").asText();
+        var failed=node(call("GET",path,null,f.owner.token,200));
+        assertThat(failed.get("failureCode").asText()).isEqualTo("PROCESSING_UNAVAILABLE");assertThat(failed.get("retryAllowed").asBoolean()).isTrue();
+        call("POST",path+"/retry",Map.of("version",2),f.owner.token,429);
+        jdbc.update("UPDATE property_video_uploads SET updated_at=clock_timestamp()-interval '11 seconds' WHERE id=?",UUID.fromString(job.get("id").asText()));
+        call("POST",path+"/retry",Map.of("version",2),f.owner.token,200);assertThat(queue.processOne()).isTrue();
+        var ready=node(call("GET",path,null,f.owner.token,200));assertThat(ready.get("status").asText()).isEqualTo("READY");assertThat(ready.get("attempts").asInt()).isEqualTo(2);
+    }
+
+    private HttpResponse<String> queued(Inventory f,byte[] data,UUID id,String caption,int status)throws Exception{
+        String boundary="queue"+UUID.randomUUID();var bytes=new ByteArrayOutputStream();
+        bytes.write(("--"+boundary+"\r\nContent-Disposition: form-data; name=\"metadata\"\r\nContent-Type: application/json\r\n\r\n"+json.writeValueAsString(Map.of("requestId",id,"propertyVersion",1,"caption",caption))+"\r\n--"+boundary+"\r\nContent-Disposition: form-data; name=\"file\"; filename=\"clip.mp4\"\r\nContent-Type: video/mp4\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+        bytes.write(data);bytes.write(("\r\n--"+boundary+"--\r\n").getBytes(StandardCharsets.UTF_8));
+        var request=HttpRequest.newBuilder(uri(f.propertyPath()+"/video-uploads")).timeout(Duration.ofSeconds(40)).header("Authorization","Bearer "+f.owner.token).header("Content-Type","multipart/form-data; boundary="+boundary).POST(HttpRequest.BodyPublishers.ofByteArray(bytes.toByteArray())).build();
+        var response=client.send(request,HttpResponse.BodyHandlers.ofString());assertThat(response.statusCode()).as(response.body()).isEqualTo(status);return response;
+    }
     @TestConfiguration
     static class ProcessingTestConfiguration {
         @Bean @Primary
@@ -288,11 +376,19 @@ class PropertyVideoTests {
         }
     }
     static class PausingVideoProcessor extends VideoProcessingService {
+        volatile boolean failNext;
         volatile CountDownLatch ready;
         volatile CountDownLatch release;
         PausingVideoProcessor(String ffmpeg, String ffprobe, ObjectMapper json) { super(ffmpeg, ffprobe, json); }
         void pause() { ready = new CountDownLatch(1); release = new CountDownLatch(1); }
         void resume() { release.countDown(); }
+        @Override public ProcessedVideo process(MultipartFile file,Path workspace,java.util.function.IntConsumer progress)throws IOException{
+            var result=super.process(file,workspace,progress);
+            if(failNext){failNext=false;throw new IOException("Synthetic temporary encoder failure");}
+            CountDownLatch gate=release;
+            if(gate!=null&&gate.getCount()!=0){ready.countDown();try{if(!gate.await(20,TimeUnit.SECONDS))throw new IOException("Test encoding gate timed out");}catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException(e);}}
+            return result;
+        }
         @Override public ProcessedVideo process(MultipartFile file, Path workspace) throws IOException {
             ProcessedVideo result = super.process(file, workspace);
             CountDownLatch gate = release;

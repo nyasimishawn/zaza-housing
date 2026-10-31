@@ -19,7 +19,7 @@ public final class DocumentHttpResponse {
             HttpHeaders.CONTENT_DISPOSITION,
             "attachment; filename=\"document-"
                 + content.id()
-                + (content.contentType().equals("image/png") ? ".png\"" : ".jpg\""))
+                + (content.contentType().equals("application/pdf") ? ".pdf\"" : content.contentType().equals("image/png") ? ".png\"" : ".jpg\""))
         .header("X-Content-Type-Options", "nosniff")
         .header("Content-Security-Policy", "sandbox; default-src 'none'")
         .body(content.resource());

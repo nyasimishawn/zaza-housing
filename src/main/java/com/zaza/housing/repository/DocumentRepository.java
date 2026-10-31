@@ -52,7 +52,7 @@ public class DocumentRepository {
               r.getInt("height"),
               r.getLong("byte_size"),
               r.getLong("cipher_size"),
-              r.getTimestamp("created_at").toInstant());
+              r.getTimestamp("created_at").toInstant(), r.getInt("page_count"));
   private static final RowMapper<DocumentGrant> GRANT =
       (r, n) ->
           new DocumentGrant(
@@ -108,6 +108,19 @@ public class DocumentRepository {
         args.toArray());
   }
 
+  public List<VaultDocument> search(UUID user,UUID org,DocumentStatus status,String query,
+      com.zaza.housing.enums.DocumentCategory category,String kind,int limit,int offset){
+    var sql=new StringBuilder("SELECT d.* FROM vault_documents d LEFT JOIN vault_document_versions v ON v.id=d.current_version_id WHERE d."+(org==null?"owner_user_id=?":"organization_id=?"));
+    var args=new ArrayList<Object>();args.add(org==null?user:org);
+    if(status!=null){sql.append(" AND d.status=?");args.add(status.name());}
+    if(query!=null&&!query.isBlank()){sql.append(" AND strpos(lower(d.title),lower(?))>0");args.add(query.strip());}
+    if(category!=null){sql.append(" AND d.category=?");args.add(category.name());}
+    if("PDF".equals(kind))sql.append(" AND v.content_type='application/pdf'");
+    if("IMAGE".equals(kind))sql.append(" AND v.content_type IN ('image/png','image/jpeg')");
+    sql.append(" ORDER BY d.updated_at DESC,d.id LIMIT ? OFFSET ?");args.add(limit);args.add(offset);
+    return jdbc.query(sql.toString(),DOCUMENT,args.toArray());
+  }
+
   public int activeCount(UUID user, UUID org) {
     return jdbc.queryForObject(
         "SELECT count(*) FROM vault_documents WHERE "
@@ -150,14 +163,15 @@ public class DocumentRepository {
       String key,
       String keyId,
       ProcessedImage image,
+      int pageCount,
       String hash,
       long cipherSize,
       UUID actor,
       Instant now) {
     jdbc.update(
         "INSERT INTO"
-            + " vault_document_versions(id,document_id,number,storage_key,key_id,content_type,content_hash,width,height,byte_size,cipher_size,created_by,created_at)"
-            + " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            + " vault_document_versions(id,document_id,number,storage_key,key_id,content_type,content_hash,width,height,byte_size,cipher_size,created_by,created_at,page_count)"
+            + " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         id,
         document,
         number,
@@ -170,7 +184,7 @@ public class DocumentRepository {
         image.bytes().length,
         cipherSize,
         actor,
-        Timestamp.from(now));
+        Timestamp.from(now), pageCount);
   }
 
   public Optional<VaultDocumentVersion> version(UUID document, UUID id) {

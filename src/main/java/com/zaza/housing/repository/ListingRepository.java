@@ -296,6 +296,15 @@ public class ListingRepository {
     }
   }
 
+  public List<ImageReferenceRequest> selectedImages(UUID listing) {
+    return jdbc.query("SELECT image_id,image_version FROM listing_image_references WHERE listing_id=? ORDER BY position LIMIT 21",
+        (r,n)->new ImageReferenceRequest(r.getObject("image_id",UUID.class),r.getLong("image_version")),listing);
+  }
+  public List<VideoReferenceRequest> selectedVideos(UUID listing) {
+    return jdbc.query("SELECT video_id,video_version FROM listing_video_references WHERE listing_id=? ORDER BY position LIMIT 6",
+        (r,n)->new VideoReferenceRequest(r.getObject("video_id",UUID.class),r.getLong("video_version")),listing);
+  }
+
   public List<PublicListingResponse> search(ListingSearchRequest query, int limit, int offset) {
     StringBuilder sql = new StringBuilder("SELECT l.public_snapshot " + FROM + " WHERE " + VISIBLE);
     List<Object> args = new ArrayList<>();

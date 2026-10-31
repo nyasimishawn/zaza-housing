@@ -29,6 +29,9 @@ public class VideoProcessingService {
     }
 
     public ProcessedVideo process(MultipartFile file, Path workspace) throws IOException {
+        return process(file, workspace, ignored -> {});
+    }
+    public ProcessedVideo process(MultipartFile file, Path workspace, java.util.function.IntConsumer progress) throws IOException {
         if (file.isEmpty()) throw invalid("Upload a non-empty MP4 or MOV clip.");
         if (file.getSize() > MAX_BYTES) throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "Videos must be at most 50 MB.");
         if (!encoders.tryAcquire()) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "Video processing is busy. Try again later.");
@@ -59,14 +62,35 @@ public class VideoProcessingService {
                     "scale=w='min(1280,iw)':h='min(1280,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2:reset_sar=1,fps=30",
                     "-c:v", "libx264", "-threads", "2", "-preset", "fast", "-crf", "24", "-maxrate", "2500k", "-bufsize", "5000k",
                     "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-ac", "2", "-ar", "48000",
-                    "-movflags", "+faststart", "-y", output.toString()), Duration.ofSeconds(90));
+                    "-movflags", "+faststart", "-progress", "pipe:1", "-nostats", "-y", output.toString()), Duration.ofSeconds(90), line -> {
+                        if (line.startsWith("out_time_us=")) try {
+                            long micros = Long.parseLong(line.substring(12));
+                            progress.accept((int)Math.clamp(micros / (duration(input)*10000), 0, 99));
+                        } catch (NumberFormatException ignored) { }
+                    });
             JsonNode result = probe(output);
             JsonNode video = validate(result, true);
             long size = Files.size(output);
             if (size == 0 || size > MAX_BYTES) throw invalid("The processed video is too large. Try a shorter clip.");
+            Path poster = workspace.resolve("poster.jpg");
+            MediaProcessRunner.run(List.of(ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-threads", "1",
+                "-protocol_whitelist", "file,pipe", "-i", output.toString(), "-frames:v", "1", "-vf",
+                "scale=w='min(640,iw)':h='min(640,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",
+                "-map_metadata", "-1", "-q:v", "3", "-threads", "1", "-y", poster.toString()), Duration.ofSeconds(10));
+            long posterSize = Files.size(poster);
+            if (posterSize <= 0 || posterSize > 2*1024*1024) throw invalid("The video poster could not be created.");
             return new ProcessedVideo(output, video.path("width").asInt(), video.path("height").asInt(),
-                    duration(result), size);
+                    duration(result), size, hash(output), poster, hash(poster), posterSize);
         } finally { encoders.release(); }
+    }
+
+    private static String hash(Path path) throws IOException {
+        try (var input = Files.newInputStream(path)) {
+            var digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] buffer = new byte[8192]; int n;
+            while ((n=input.read(buffer))!=-1) digest.update(buffer,0,n);
+            return java.util.HexFormat.of().formatHex(digest.digest());
+        } catch (java.security.NoSuchAlgorithmException impossible) { throw new IOException(impossible); }
     }
 
     private JsonNode probe(Path source) {

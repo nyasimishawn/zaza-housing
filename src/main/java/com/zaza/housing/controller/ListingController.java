@@ -47,6 +47,11 @@ public class ListingController {
             @PathVariable UUID propertyId, @PathVariable UUID id, @Valid @RequestBody UpdateListingRequest request) {
         return listings.update(actor, organizationId, propertyId, id, request);
     }
+    @GetMapping("/{id}/media-selection")
+    public com.zaza.housing.dto.PublicationMediaResponse mediaSelection(@AuthenticationPrincipal AuthenticatedUser actor,
+            @PathVariable UUID organizationId,@PathVariable UUID propertyId,@PathVariable UUID id) {
+        return listings.mediaSelection(actor,organizationId,propertyId,id);
+    }
     @PostMapping("/{id}/publish")
     public RentalListing publish(@AuthenticationPrincipal AuthenticatedUser actor, @PathVariable UUID organizationId,
             @PathVariable UUID propertyId, @PathVariable UUID id, @Valid @RequestBody PublishListingRequest request) {

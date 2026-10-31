@@ -13,6 +13,9 @@ import org.springframework.http.HttpStatus;
 public final class MediaProcessRunner {
     private MediaProcessRunner() { }
     public static String run(List<String> command, Duration timeout) {
+        return run(command, timeout, null);
+    }
+    public static String run(List<String> command, Duration timeout, java.util.function.Consumer<String> progress) {
         final Process process;
         try { process = new ProcessBuilder(command).redirectErrorStream(true).start(); }
         catch (IOException error) { throw unavailable("Video tools are unavailable. Configure FFmpeg and FFprobe."); }
@@ -22,9 +25,17 @@ public final class MediaProcessRunner {
         Thread reader = Thread.ofVirtual().start(() -> {
             try (var input = process.getInputStream()) {
                 byte[] buffer = new byte[4096]; int count;
+                var line = new StringBuilder();
                 while ((count = input.read(buffer)) != -1) {
                     if (bytes.size() + count > 131072) { overflow.set(true); process.destroyForcibly(); break; }
                     bytes.write(buffer, 0, count);
+                    if (progress != null) {
+                        for (int i=0;i<count;i++) {
+                            char c=(char)(buffer[i]&255);
+                            if (c=='\n') { progress.accept(line.toString().strip()); line.setLength(0); }
+                            else if (line.length()<1024) line.append(c);
+                        }
+                    }
                 }
             } catch (IOException error) { readFailure.set(true); }
         });

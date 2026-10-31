@@ -42,4 +42,8 @@ public class PublicListingController {
     public ResponseEntity<Resource> video(@PathVariable UUID id, @PathVariable UUID videoId) {
         return VideoHttpResponse.content(videos.publicContent(listings.publicListing(id), videoId));
     }
+    @GetMapping("/{id}/videos/{videoId}/poster")
+    public ResponseEntity<Resource> poster(@PathVariable UUID id,@PathVariable UUID videoId) {
+        return ImageHttpResponse.content(videos.publicPoster(listings.publicListing(id),videoId));
+    }
 }
