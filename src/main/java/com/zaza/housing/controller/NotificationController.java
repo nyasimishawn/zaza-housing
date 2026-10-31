@@ -17,13 +17,31 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/me/notifications")
 public class NotificationController {
-    private final NotificationService notifications;
-    public NotificationController(NotificationService notifications) { this.notifications = notifications; }
-    @GetMapping
-    public List<NotificationResponse> list(@AuthenticationPrincipal AuthenticatedUser actor, @RequestParam(defaultValue = "false") boolean unreadOnly,
-            @RequestParam(defaultValue = "50") int limit, @RequestParam(defaultValue = "0") int offset) { return notifications.list(actor, unreadOnly, limit, offset); }
-    @GetMapping("/summary")
-    public NotificationSummaryResponse summary(@AuthenticationPrincipal AuthenticatedUser actor) { return notifications.summary(actor); }
-    @PatchMapping("/{id}/read")
-    public NotificationResponse markRead(@AuthenticationPrincipal AuthenticatedUser actor, @PathVariable UUID id) { return notifications.markRead(actor, id); }
+  private final NotificationService notifications;
+
+  public NotificationController(NotificationService notifications) {
+    this.notifications = notifications;
+  }
+
+  @GetMapping
+  public List<NotificationResponse> list(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @RequestParam(defaultValue = "false") boolean unreadOnly,
+      @RequestParam(defaultValue = "false") boolean archived,
+      @RequestParam(required = false) String category,
+      @RequestParam(defaultValue = "50") int limit,
+      @RequestParam(defaultValue = "0") int offset) {
+    return notifications.list(actor, unreadOnly, archived, category, limit, offset);
+  }
+
+  @GetMapping("/summary")
+  public NotificationSummaryResponse summary(@AuthenticationPrincipal AuthenticatedUser actor) {
+    return notifications.summary(actor);
+  }
+
+  @PatchMapping("/{id}/read")
+  public NotificationResponse markRead(
+      @AuthenticationPrincipal AuthenticatedUser actor, @PathVariable UUID id) {
+    return notifications.markRead(actor, id);
+  }
 }

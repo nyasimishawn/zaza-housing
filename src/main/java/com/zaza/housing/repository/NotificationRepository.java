@@ -32,10 +32,22 @@ public class NotificationRepository {
               rs.getObject("conversation_id", UUID.class),
               rs.getString("conversation_url"),
               rs.getObject("vault_event_id", UUID.class),
-              rs.getString("vault_url"),rs.getObject("caretaker_target_id",UUID.class),rs.getString("caretaker_url"));
-    private final JdbcTemplate jdbc;
-    public NotificationRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
-    public void append(UUID user, UUID application, UUID event, ApplicationEventType type, String message) {
+              rs.getString("vault_url"),
+              rs.getObject("caretaker_target_id", UUID.class),
+              rs.getString("caretaker_url"),
+              rs.getString("category"),
+              rs.getTimestamp("archived_at") == null
+                  ? null
+                  : rs.getTimestamp("archived_at").toInstant(),
+              rs.getObject("workspace_event_id", UUID.class));
+  private final JdbcTemplate jdbc;
+
+  public NotificationRepository(JdbcTemplate jdbc) {
+    this.jdbc = jdbc;
+  }
+
+  public void append(
+      UUID user, UUID application, UUID event, ApplicationEventType type, String message) {
     jdbc.update(
         "INSERT INTO in_app_notifications(id, user_id, application_id, event_id, type, message)"
             + " VALUES (?, ?, ?, ?, ?, ?)",
@@ -45,11 +57,21 @@ public class NotificationRepository {
         event,
         type.name(),
         message);
-    }
-    public void leaseTenant(UUID user,UUID application,UUID lease,UUID event,String type,String message) {
-        leaseNotification(user,application,lease,event,type,message,"/api/v1/me/leases/"+lease);
-    }
-    private void leaseNotification(UUID user,UUID application,UUID lease,UUID event,String type,String message,String url) {
+  }
+
+  public void leaseTenant(
+      UUID user, UUID application, UUID lease, UUID event, String type, String message) {
+    leaseNotification(user, application, lease, event, type, message, "/api/v1/me/leases/" + lease);
+  }
+
+  private void leaseNotification(
+      UUID user,
+      UUID application,
+      UUID lease,
+      UUID event,
+      String type,
+      String message,
+      String url) {
     jdbc.update(
         "INSERT INTO"
             + " in_app_notifications(id,user_id,application_id,lease_id,lease_event_id,type,message,lease_url)"
@@ -62,8 +84,16 @@ public class NotificationRepository {
         type,
         message,
         url);
-    }
-    public void leaseManagers(UUID actor,UUID application,UUID lease,UUID property,UUID event,String type,String message) {
+  }
+
+  public void leaseManagers(
+      UUID actor,
+      UUID application,
+      UUID lease,
+      UUID property,
+      UUID event,
+      String type,
+      String message) {
     jdbc.query(
         """
         SELECT DISTINCT ON (m.user_id) m.user_id,m.organization_id FROM organization_memberships m
@@ -89,12 +119,22 @@ public class NotificationRepository {
         },
         property,
         actor);
-    }
-    public void billingTenant(UUID user,UUID application,UUID lease,UUID event,String type,String message) {
+  }
+
+  public void billingTenant(
+      UUID user, UUID application, UUID lease, UUID event, String type, String message) {
     billingNotification(
         user, application, lease, event, type, message, "/api/v1/me/leases/" + lease + "/billing");
-    }
-    private void billingNotification(UUID user,UUID application,UUID lease,UUID event,String type,String message,String url) {
+  }
+
+  private void billingNotification(
+      UUID user,
+      UUID application,
+      UUID lease,
+      UUID event,
+      String type,
+      String message,
+      String url) {
     jdbc.update(
         "INSERT INTO"
             + " in_app_notifications(id,user_id,application_id,lease_id,billing_event_id,type,message,lease_url)"
@@ -107,8 +147,16 @@ public class NotificationRepository {
         type,
         message,
         url);
-    }
-    public void billingManagers(UUID actor,UUID application,UUID lease,UUID property,UUID event,String type,String message) {
+  }
+
+  public void billingManagers(
+      UUID actor,
+      UUID application,
+      UUID lease,
+      UUID property,
+      UUID event,
+      String type,
+      String message) {
     jdbc.query(
         """
         SELECT DISTINCT ON (m.user_id) m.user_id,m.organization_id FROM organization_memberships m
@@ -135,10 +183,11 @@ public class NotificationRepository {
         },
         property,
         actor);
-    }
+  }
 
-    public void workRecipient(UUID user,UUID actor,UUID work,UUID event,String type,String message,String url) {
-        if(user.equals(actor)) return;
+  public void workRecipient(
+      UUID user, UUID actor, UUID work, UUID event, String type, String message, String url) {
+    if (user.equals(actor)) return;
     jdbc.update(
         "INSERT INTO"
             + " in_app_notifications(id,user_id,work_request_id,work_event_id,type,message,work_request_url)"
@@ -150,8 +199,10 @@ public class NotificationRepository {
         type,
         message,
         url);
-    }
-    public void workProvider(UUID organization,UUID actor,UUID work,UUID event,String type,String message) {
+  }
+
+  public void workProvider(
+      UUID organization, UUID actor, UUID work, UUID event, String type, String message) {
     jdbc.query(
         "SELECT m.user_id FROM organization_memberships m JOIN app_users u ON u.id=m.user_id AND"
             + " u.active WHERE m.organization_id=? AND m.role IN ('OWNER','ADMIN')",
@@ -166,8 +217,10 @@ public class NotificationRepository {
               "/api/v1/organizations/" + organization + "/service-jobs/" + work);
         },
         organization);
-    }
-    public void workManagers(UUID property,UUID actor,UUID work,UUID event,String type,String message) {
+  }
+
+  public void workManagers(
+      UUID property, UUID actor, UUID work, UUID event, String type, String message) {
     jdbc.query(
         """
         SELECT DISTINCT ON (m.user_id) m.user_id,m.organization_id FROM organization_memberships m
@@ -191,7 +244,7 @@ public class NotificationRepository {
                   + work);
         },
         property);
-    }
+  }
 
   public void serviceFinance(
       UUID user, UUID actor, UUID account, UUID event, String type, String message) {
@@ -236,23 +289,36 @@ public class NotificationRepository {
         url);
   }
 
-    public List<NotificationResponse> list(UUID user, boolean unreadOnly, int limit, int offset) {
+  public List<NotificationResponse> list(UUID user, boolean unreadOnly, int limit, int offset) {
+    return list(user, unreadOnly, false, null, limit, offset);
+  }
+
+  public List<NotificationResponse> list(
+      UUID user, boolean unreadOnly, boolean archived, String category, int limit, int offset) {
+    var parameters = new java.util.ArrayList<Object>();
+    parameters.add(user);
+    if (category != null) parameters.add(category);
+    parameters.add(limit);
+    parameters.add(offset);
     return jdbc.query(
         "SELECT * FROM in_app_notifications WHERE user_id = ?"
+            + (archived ? " AND archived_at IS NOT NULL" : " AND archived_at IS NULL")
+            + (category == null ? "" : " AND category=?")
             + (unreadOnly ? " AND read_at IS NULL" : "")
             + " ORDER BY created_at DESC, id LIMIT ? OFFSET ?",
         NOTIFICATION,
-        user,
-        limit,
-        offset);
-    }
-    public long unread(UUID user) {
+        parameters.toArray());
+  }
+
+  public long unread(UUID user) {
     return jdbc.queryForObject(
-        "SELECT count(*) FROM in_app_notifications WHERE user_id = ? AND read_at IS NULL",
+        "SELECT count(*) FROM in_app_notifications WHERE user_id = ? AND read_at IS NULL AND"
+            + " archived_at IS NULL",
         Long.class,
         user);
   }
-    public Optional<NotificationResponse> markRead(UUID user, UUID id) {
+
+  public Optional<NotificationResponse> markRead(UUID user, UUID id) {
     return jdbc
         .query(
             "UPDATE in_app_notifications SET read_at = COALESCE(read_at, clock_timestamp()) WHERE"
@@ -262,10 +328,18 @@ public class NotificationRepository {
             id)
         .stream()
         .findFirst();
-    }
+  }
 
-    public void vault(UUID user,UUID actor,UUID event,String type,String url) {
-        if(user.equals(actor)) return;
-        jdbc.update("INSERT INTO in_app_notifications(id,user_id,vault_event_id,type,message,vault_url) VALUES (?,?,?,?,?,?) ON CONFLICT(user_id,vault_event_id) DO NOTHING",UUID.randomUUID(),user,event,type,"A private document or verification workflow was updated. Open it for details.",url);
-    }
+  public void vault(UUID user, UUID actor, UUID event, String type, String url) {
+    if (user.equals(actor)) return;
+    jdbc.update(
+        "INSERT INTO in_app_notifications(id,user_id,vault_event_id,type,message,vault_url) VALUES"
+            + " (?,?,?,?,?,?) ON CONFLICT(user_id,vault_event_id) DO NOTHING",
+        UUID.randomUUID(),
+        user,
+        event,
+        type,
+        "A private document or verification workflow was updated. Open it for details.",
+        url);
+  }
 }
