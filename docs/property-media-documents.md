@@ -50,4 +50,4 @@ Use existing document key and FFmpeg setup scripts. Do not commit keys, .env, up
 
 ## Delivery verification
 
-The complete backend suite passed 523 tests with no failures, errors or skips against an isolated disposable PostgreSQL cluster; bootJar and the packaged-JAR PDF worker passed. Added cancellation-after-encoding and retained-source retry cases are checked separately with the complete video suite. No production/demo database or environment files are used.
+The complete backend suite passed 523 tests with no failures, errors or skips against an isolated disposable PostgreSQL cluster; bootJar and the packaged-JAR PDF worker passed. The final complete video suite passed 20 cases, including cancellation after real encoding and retained-source retry/cooldown. These include two cases added after the full-suite run, for 525 unique passing backend cases. No production/demo database or environment files are used.
