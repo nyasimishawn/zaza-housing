@@ -12,6 +12,9 @@ spring:
     default-schema: zaza_foundation_test
     schemas: zaza_foundation_test
 zaza:
+  media:
+    jobs:
+      enabled: false
   security:
     # Legacy domain tests exercise their own authorization. New security tests explicitly enable the production MFA gate.
     require-admin-mfa: false

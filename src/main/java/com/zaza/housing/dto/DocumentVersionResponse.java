@@ -11,4 +11,5 @@ public record DocumentVersionResponse(
     int width,
     int height,
     long byteSize,
-    Instant createdAt) {}
+    Instant createdAt,
+    int pageCount) {}

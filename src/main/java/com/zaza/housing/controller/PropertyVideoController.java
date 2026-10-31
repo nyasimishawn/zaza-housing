@@ -47,10 +47,20 @@ public class PropertyVideoController {
             @PathVariable UUID propertyId, @PathVariable UUID id) {
         return VideoHttpResponse.content(videos.privateContent(actor, organizationId, propertyId, id));
     }
+    @GetMapping("/{id}")
+    public PropertyVideoResponse get(@AuthenticationPrincipal AuthenticatedUser actor,@PathVariable UUID organizationId,
+        @PathVariable UUID propertyId,@PathVariable UUID id) {
+        return videos.get(actor,organizationId,propertyId,id);
+    }
     @PutMapping("/{id}")
     public PropertyVideoResponse update(@AuthenticationPrincipal AuthenticatedUser actor, @PathVariable UUID organizationId,
             @PathVariable UUID propertyId, @PathVariable UUID id, @Valid @RequestBody UpdateVideoRequest request) {
         return videos.update(actor, organizationId, propertyId, id, request);
+    }
+    @GetMapping("/{id}/poster")
+    public ResponseEntity<Resource> poster(@AuthenticationPrincipal AuthenticatedUser actor, @PathVariable UUID organizationId,
+            @PathVariable UUID propertyId, @PathVariable UUID id) {
+        return com.zaza.housing.util.ImageHttpResponse.content(videos.privatePoster(actor,organizationId,propertyId,id));
     }
     @PatchMapping("/{id}/status")
     public PropertyVideoResponse status(@AuthenticationPrincipal AuthenticatedUser actor, @PathVariable UUID organizationId,

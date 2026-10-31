@@ -58,6 +58,82 @@ class DocumentVerificationTests {
     clock.now = Instant.parse("2026-11-01T12:00:00Z");
   }
 
+  @Test void multipagePdfsBecomeEncryptedStaticCopiesWithPrivatePagePreviews() throws Exception {
+    var f=personal();var metadata=metadata("PROPERTY_OWNERSHIP",0);byte[] original=pdf(2,false);
+    var response=uploadRaw(f,null,metadata,original);assertThat(response.statusCode()).as(response.body()).isEqualTo(201);
+    var d=node(response);var version=d.get("currentVersion");
+    assertThat(version.get("contentType").asText()).isEqualTo("application/pdf");assertThat(version.get("pageCount").asInt()).isEqualTo(2);
+    byte[] canonical=download(content(f,d),f.actor,200).body();
+    assertThat(hash(canonical)).isEqualTo(version.get("contentHash").asText());
+    try(var stored=org.apache.pdfbox.Loader.loadPDF(canonical)){
+      assertThat(stored.getNumberOfPages()).isEqualTo(2);assertThat(stored.getDocumentCatalog().getOpenAction()).isNull();
+      assertThat(stored.getDocumentInformation().getAuthor()).isNull();
+      assertThat(new org.apache.pdfbox.text.PDFTextStripper().getText(stored)).isBlank();
+    }
+    assertThat(java.nio.file.Files.readAllBytes(IMAGE_ROOT.resolve(storage(d)))).isNotEqualTo(canonical);
+    String pages=content(f,d).replace("/content","/pages/");
+    for(int page=1;page<=2;page++){
+      var preview=node(call("GET",pages+page,null,f.actor,200));byte[] bytes=Base64.getDecoder().decode(preview.get("bytes").asText());
+      assertThat(preview.get("versionId")).isEqualTo(version.get("id"));assertThat(preview.get("pageNumber").asInt()).isEqualTo(page);
+      assertThat(preview.get("pageCount").asInt()).isEqualTo(2);assertThat(hash(bytes)).isEqualTo(preview.get("contentHash").asText());
+      assertThat(javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(bytes))).isNotNull();
+    }
+    call("GET",pages+3,null,f.actor,404);call("GET",pages+0,null,f.actor,404);call("GET",pages+1,null,null,401);call("GET",pages+1,null,account(),404);
+    var replay=uploadRaw(f,null,metadata,original);assertThat(replay.statusCode()).isEqualTo(201);assertThat(node(replay).get("id")).isEqualTo(d.get("id"));
+    d=archive(f,d);call("GET",pages+1,null,f.actor,409);
+  }
+  @Test void encryptedOverpageAndSpoofedPdfsLeaveNoDocumentOrPlaintextFiles() throws Exception {
+    var f=personal();long before=fileCount();
+    for(byte[] bytes:List.of(pdf(21,false),pdf(1,true),"%PDF-1.7 invalid".getBytes(StandardCharsets.UTF_8))){
+      assertThat(uploadRaw(f,null,metadata("OTHER",0),bytes).statusCode()).isEqualTo(400);
+    }
+    assertThat(node(call("GET",base(f),null,f.actor,200))).isEmpty();assertThat(fileCount()).isEqualTo(before);
+  }
+  @Test void pdfVersionsDoNotChangePreviouslySharedPageBytesAndTamperingIsRejected() throws Exception {
+    var f=personal();var response=uploadRaw(f,null,metadata("LEASE",0),pdf(2,false));assertThat(response.statusCode()).as(response.body()).isEqualTo(201);
+    var d=node(response);String old=content(f,d).replace("/content","/pages/2");
+    var preview=node(call("GET",old,null,f.actor,200));d=replace(f,d,pdf(1,false));
+    assertThat(node(call("GET",old,null,f.actor,200)).get("bytes")).isEqualTo(preview.get("bytes"));
+    String key=storage(d);byte[] original=java.nio.file.Files.readAllBytes(IMAGE_ROOT.resolve(key));
+    byte[] modified=original.clone();modified[modified.length-1]^=1;java.nio.file.Files.write(IMAGE_ROOT.resolve(key),modified);
+    try{call("GET",content(f,d).replace("/content","/pages/1"),null,f.actor,503);}finally{java.nio.file.Files.write(IMAGE_ROOT.resolve(key),original);}
+  }
+  @Test void propertyFilesLinkExactOrganizationVersionsWithoutGrantingOtherWorkspacesAccess() throws Exception {
+    var owner=account();String org=organization(owner,"LANDLORD");var f=new VaultOwner(owner,org);
+    String root="/api/v1/organizations/"+org+"/properties";
+    String property=node(call("POST",root,Map.of("name","PDF property","type","HOUSE","countryCode","KE","city","Nairobi","address","Private test"),owner,201)).get("id").asText();
+    String path=root+"/"+property+"/documents";
+    var response=uploadRaw(f,null,metadata("LEASE",0),pdf(2,false));assertThat(response.statusCode()).as(response.body()).isEqualTo(201);var d=node(response);
+    UUID request=UUID.randomUUID();var body=Map.of("requestId",request,"propertyVersion",0,"documentId",d.get("id").asText(),"documentVersionId",d.get("currentVersion").get("id").asText());
+    var link=node(call("POST",path,body,owner,201));assertThat(node(call("POST",path,body,owner,201)).get("id")).isEqualTo(link.get("id"));
+    call("GET",path,null,account(),404);
+    d=replace(f,d,pdf(1,false));var listed=node(call("GET",path,null,owner,200));
+    assertThat(listed.get(0).get("linkedVersion").get("pageCount").asInt()).isEqualTo(2);
+    assertThat(listed.get(0).get("document").get("currentVersion").get("pageCount").asInt()).isEqualTo(1);
+    assertThat(node(call("GET",base(f)+"?q=Sensitive&kind=PDF&category=LEASE",null,owner,200)).size()).isEqualTo(1);
+    assertThat(node(call("GET",base(f)+"?kind=IMAGE",null,owner,200))).isEmpty();
+    var personal=personal(owner);var privateDoc=upload(personal,"IDENTITY");
+    call("POST",path,Map.of("requestId",UUID.randomUUID(),"propertyVersion",0,"documentId",privateDoc.get("id").asText(),"documentVersionId",privateDoc.get("currentVersion").get("id").asText()),owner,404);
+    call("DELETE",path+"/"+link.get("id").asText(),null,owner,204);
+    assertThat(node(call("GET",path,null,owner,200))).isEmpty();
+    download(content(f,d),owner,200);call("POST",path,body,owner,409);
+  }
+
+  private byte[] pdf(int pages,boolean encrypted)throws Exception{
+    try(var d=new org.apache.pdfbox.pdmodel.PDDocument();var out=new java.io.ByteArrayOutputStream()){
+      d.getDocumentInformation().setAuthor("PRIVATE_AUTHOR");
+      d.getDocumentCatalog().setOpenAction(new org.apache.pdfbox.pdmodel.interactive.action.PDActionJavaScript("app.alert('PRIVATE_SCRIPT')"));
+      for(int i=0;i<pages;i++){
+        var page=new org.apache.pdfbox.pdmodel.PDPage(new org.apache.pdfbox.pdmodel.common.PDRectangle(300,200));d.addPage(page);
+        try(var c=new org.apache.pdfbox.pdmodel.PDPageContentStream(d,page)){
+          c.beginText();c.setFont(new org.apache.pdfbox.pdmodel.font.PDType1Font(org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName.HELVETICA),18);c.newLineAtOffset(30,100);c.showText("Private property page "+(i+1));c.endText();
+        }
+      }
+      if(encrypted)d.protect(new org.apache.pdfbox.pdmodel.encryption.StandardProtectionPolicy("owner-secret","reader-secret",new org.apache.pdfbox.pdmodel.encryption.AccessPermission()));
+      d.save(out);return out.toByteArray();
+    }
+  }
+
   @Test
   void scansAreEncryptedAtRestAndDownloadedAsPrivateAttachments() throws Exception {
     var f = personal();

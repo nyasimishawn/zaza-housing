@@ -63,7 +63,17 @@ public class PropertyVideoService {
         catch (IOException error) { throw storageUnavailable(); }
         try {
             ProcessedVideo processed = processing.process(file, workspace);
-            return transactions.execute(status -> {
+            return storeProcessed(actor, organization, propertyId, processed, caption);
+        } catch (IOException error) { throw storageUnavailable(); }
+        finally {
+            try { storage.removeWorkspace(workspace); }
+            catch (IOException error) { log.warn("Could not clean a video processing workspace: {}", workspace.getFileName()); }
+        }
+    }
+
+    public PropertyVideoResponse storeProcessed(AuthenticatedUser actor, UUID organization, UUID propertyId,
+            ProcessedVideo processed, String caption) {
+        return transactions.execute(status -> {
                 // Memberships, delegation, archival, and capacity may have changed during processing.
                 requireOpen(properties.lockForManagement(actor, organization, propertyId));
                 checkCapacity(propertyId);
@@ -78,16 +88,13 @@ public class PropertyVideoService {
                         }
                     }
                 });
+                if (processed.posterPath() != null) try { storage.savePoster(key, processed.posterPath()); }
+                catch (IOException error) { throw storageUnavailable(); }
                 UUID id = videos.create(propertyId, actor.id(), key, processed, caption.trim());
                 var result = response(organization, find(propertyId, id));
                 audit.recordSnapshot(actor.id(), organization, "PROPERTY_VIDEO_UPLOADED", id, null, result);
                 return result;
-            });
-        } catch (IOException error) { throw storageUnavailable(); }
-        finally {
-            try { storage.removeWorkspace(workspace); }
-            catch (IOException error) { log.warn("Could not clean a video processing workspace: {}", workspace.getFileName()); }
-        }
+        });
     }
 
     private static ApiException storageUnavailable() {
@@ -105,11 +112,29 @@ public class PropertyVideoService {
         properties.get(actor, organization, propertyId);
         return content(find(propertyId, id));
     }
+    public PropertyVideoResponse get(AuthenticatedUser actor,UUID organization,UUID propertyId,UUID id) {
+        properties.get(actor,organization,propertyId);return response(organization,find(propertyId,id));
+    }
 
     public VideoContent publicContent(PublicListingResponse approvedListing, UUID id) {
         if (approvedListing.videos().stream().noneMatch(video -> video.id().equals(id))) throw notFound();
         PropertyVideo video = videos.publishedReference(approvedListing.id(), id).orElseThrow(PropertyVideoService::notFound);
         return content(video);
+    }
+
+    public com.zaza.housing.model.ImageContent privatePoster(AuthenticatedUser actor, UUID organization, UUID propertyId, UUID id) {
+        properties.get(actor, organization, propertyId);
+        return poster(find(propertyId,id));
+    }
+    public com.zaza.housing.model.ImageContent publicPoster(PublicListingResponse approvedListing, UUID id) {
+        if(approvedListing.videos().stream().noneMatch(v -> v.id().equals(id))) throw notFound();
+        return poster(videos.publishedReference(approvedListing.id(),id).orElseThrow(PropertyVideoService::notFound));
+    }
+    private com.zaza.housing.model.ImageContent poster(PropertyVideo video) {
+        requireActive(video);
+        if(video.posterSize()==null) throw notFound();
+        try { return new com.zaza.housing.model.ImageContent(video.id(),storage.poster(video.storageKey()),"image/jpeg",video.posterSize()); }
+        catch(IOException error) { throw notFound(); }
     }
 
     @Transactional
@@ -147,7 +172,8 @@ public class PropertyVideoService {
             requireActive(video);
             checkVersion(video, selection.version());
             result.add(new PublicVideoResponse(video.id(), video.caption(), video.contentType(), video.width(), video.height(), video.durationSeconds(),
-                    "/api/v1/listings/" + listingId + "/videos/" + video.id()));
+                    "/api/v1/listings/" + listingId + "/videos/" + video.id(),
+                    video.posterSize()==null ? null : "/api/v1/listings/" + listingId + "/videos/" + video.id()+"/poster"));
         }
         return List.copyOf(result);
     }
@@ -166,7 +192,9 @@ public class PropertyVideoService {
     private static PropertyVideoResponse response(UUID organization, PropertyVideo video) {
         return new PropertyVideoResponse(video.id(), video.caption(), video.contentType(), video.width(), video.height(), video.durationSeconds(),
                 video.byteSize(), video.status(), video.version(), "/api/v1/organizations/" + organization + "/properties/" + video.propertyId()
-                + "/videos/" + video.id() + "/content", video.createdAt(), video.updatedAt());
+                + "/videos/" + video.id() + "/content", video.createdAt(), video.updatedAt(), video.contentHash(),
+                video.posterSize()==null ? null : "/api/v1/organizations/"+organization+"/properties/"+video.propertyId()+"/videos/"+video.id()+"/poster",
+                video.posterHash(),video.posterSize());
     }
     private void checkCapacity(UUID propertyId) {
         if (videos.activeCount(propertyId) >= 5) throw new ApiException(HttpStatus.CONFLICT, "A property can have at most 5 active videos.");

@@ -5,4 +5,5 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record PropertyVideoResponse(UUID id, String caption, String contentType, int width, int height, double durationSeconds,
-        long byteSize, VideoStatus status, long version, String contentUrl, Instant createdAt, Instant updatedAt) { }
+        long byteSize, VideoStatus status, long version, String contentUrl, Instant createdAt, Instant updatedAt,
+        String contentHash, String posterUrl, String posterHash, Long posterSize) { }

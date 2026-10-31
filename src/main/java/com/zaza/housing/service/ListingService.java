@@ -61,6 +61,13 @@ public class ListingService {
         return find(propertyId, id);
     }
 
+    @Transactional(readOnly=true, isolation=org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public com.zaza.housing.dto.PublicationMediaResponse mediaSelection(AuthenticatedUser actor, UUID organization, UUID propertyId, UUID id) {
+        properties.get(actor,organization,propertyId);
+        var listing=find(propertyId,id);
+        return new com.zaza.housing.dto.PublicationMediaResponse(listing.version(),listings.selectedImages(id),listings.selectedVideos(id));
+    }
+
     public List<RentalListing> list(AuthenticatedUser actor, UUID organization, UUID propertyId, int limit, int offset) {
         properties.get(actor, organization, propertyId);
         Pagination.validate(limit, offset);

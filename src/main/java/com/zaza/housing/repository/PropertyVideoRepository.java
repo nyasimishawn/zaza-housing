@@ -16,16 +16,18 @@ public class PropertyVideoRepository {
             rs.getObject("id", UUID.class), rs.getObject("property_id", UUID.class), rs.getString("storage_key"),
             rs.getString("content_type"), rs.getInt("width"), rs.getInt("height"), rs.getDouble("duration_seconds"), rs.getLong("byte_size"),
             rs.getString("caption"), VideoStatus.valueOf(rs.getString("status")), rs.getLong("version"),
-            rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant());
+            rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant(),
+            rs.getString("content_hash"), rs.getString("poster_hash"), rs.getObject("poster_size", Long.class));
     private final JdbcTemplate jdbc;
     public PropertyVideoRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
     public UUID create(UUID property, UUID actor, String key, ProcessedVideo video, String caption) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
-                INSERT INTO property_videos(id, property_id, created_by, storage_key, content_type, width, height, duration_seconds, byte_size, caption)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, id, property, actor, key, "video/mp4", video.width(), video.height(), video.durationSeconds(), video.byteSize(), caption);
+                INSERT INTO property_videos(id, property_id, created_by, storage_key, content_type, width, height, duration_seconds, byte_size, caption, content_hash, poster_hash, poster_size)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, id, property, actor, key, "video/mp4", video.width(), video.height(), video.durationSeconds(), video.byteSize(), caption,
+                video.contentHash(), video.posterHash(), video.posterPath() == null ? null : video.posterSize());
         return id;
     }
     public Optional<PropertyVideo> find(UUID property, UUID id) {

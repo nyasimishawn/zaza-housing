@@ -86,7 +86,8 @@ public class SecurityConfig {
                     .requestMatchers(
                         HttpMethod.GET,
                         "/api/v1/listings/{id}/images/{imageId}",
-                        "/api/v1/listings/{id}/videos/{videoId}")
+                        "/api/v1/listings/{id}/videos/{videoId}",
+                        "/api/v1/listings/{id}/videos/{videoId}/poster")
                     .permitAll()
                     .requestMatchers("/api/v1/admin/**")
                     .hasRole("PLATFORM_ADMIN")

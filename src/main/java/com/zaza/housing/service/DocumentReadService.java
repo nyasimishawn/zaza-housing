@@ -47,7 +47,7 @@ public class DocumentReadService {
     access.owner(actor, org, false);
     return new DocumentStorageStatusResponse(
         crypto.configured(),
-        "JPEG/PNG scans, decoded and re-encoded; PDF is not accepted",
+        "JPEG/PNG scans and PDF (up to 20 pages, 10 MB input); PDFs are normalized to raster pages before encryption",
         20,
         "AES-256-GCM");
   }
@@ -60,6 +60,15 @@ public class DocumentReadService {
     var versions =
         documents.currentVersions(rows.stream().map(VaultDocument::currentVersionId).toList());
     return rows.stream().map(d -> response(d, versions.get(d.currentVersionId()))).toList();
+  }
+
+  public List<DocumentResponse> search(AuthenticatedUser actor,UUID org,DocumentStatus status,String query,
+      com.zaza.housing.enums.DocumentCategory category,String kind,int limit,int offset){
+    access.owner(actor,org,false);Pagination.validate(limit,offset);
+    if(query!=null&&query.length()>150||kind!=null&&!List.of("PDF","IMAGE").contains(kind))throw DocumentAccessService.invalid("Choose a valid document search or file type.");
+    var rows=documents.search(actor.id(),org,status,query,category,kind,limit,offset);
+    var versions=documents.currentVersions(rows.stream().map(VaultDocument::currentVersionId).toList());
+    return rows.stream().map(d->response(d,versions.get(d.currentVersionId()))).toList();
   }
 
   public DocumentResponse get(AuthenticatedUser actor, UUID org, UUID id) {
@@ -92,7 +101,7 @@ public class DocumentReadService {
         v.width(),
         v.height(),
         v.byteSize(),
-        v.createdAt());
+        v.createdAt(), v.pageCount());
   }
 
   public List<DocumentVersionResponse> versions(

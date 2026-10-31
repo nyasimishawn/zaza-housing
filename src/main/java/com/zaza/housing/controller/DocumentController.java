@@ -54,9 +54,12 @@ public class DocumentController {
       @AuthenticationPrincipal AuthenticatedUser actor,
       @PathVariable(required = false) UUID organizationId,
       @RequestParam(required = false) DocumentStatus status,
+      @RequestParam(required = false) String q,
+      @RequestParam(required = false) com.zaza.housing.enums.DocumentCategory category,
+      @RequestParam(required = false) String kind,
       @RequestParam(defaultValue = "50") int limit,
       @RequestParam(defaultValue = "0") int offset) {
-    return reads.list(actor, organizationId, status, limit, offset);
+    return reads.search(actor, organizationId, status, q, category, kind, limit, offset);
   }
 
   @GetMapping("/{id}")
