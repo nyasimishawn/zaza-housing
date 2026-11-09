@@ -3,6 +3,8 @@ package com.zaza.housing.controller;
 import com.zaza.housing.dto.LoginRequest;
 import com.zaza.housing.dto.LoginResponse;
 import com.zaza.housing.dto.RegisterRequest;
+import com.zaza.housing.dto.RefreshTokenRequest;
+import com.zaza.housing.service.KeycloakAuthService;
 import com.zaza.housing.model.AuthenticatedUser;
 import com.zaza.housing.model.UserAccount;
 import com.zaza.housing.service.AuthService;
@@ -22,9 +24,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1")
 public class AuthController {
   private final AuthService auth;
+  private final KeycloakAuthService keycloak;
 
-  public AuthController(AuthService auth) {
+  public AuthController(AuthService auth, KeycloakAuthService keycloak) {
     this.auth = auth;
+    this.keycloak = keycloak;
   }
 
   @PostMapping("/auth/register")
@@ -49,5 +53,10 @@ public class AuthController {
   @GetMapping("/me")
   public UserAccount me(@AuthenticationPrincipal AuthenticatedUser user) {
     return auth.me(user);
+  }
+
+  @PostMapping("/auth/refresh")
+  public LoginResponse refresh(@Valid @RequestBody RefreshTokenRequest request) {
+    return keycloak.refresh(request.refreshToken());
   }
 }

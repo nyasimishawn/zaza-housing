@@ -31,6 +31,7 @@ public class AuthService {
   private final Duration sessionDuration;
   private final SecureRandom random = new SecureRandom();
   private final String dummyHash;
+  private final KeycloakAuthService keycloak;
   private final org.springframework.beans.factory.ObjectProvider<AccountSecurityService> security;
   private final com.zaza.housing.repository.AccountSecurityRepository accountSecurity;
 
@@ -41,7 +42,8 @@ public class AuthService {
       Clock clock,
       @Value("${zaza.auth.session-duration}") Duration sessionDuration,
       org.springframework.beans.factory.ObjectProvider<AccountSecurityService> security,
-      com.zaza.housing.repository.AccountSecurityRepository accountSecurity) {
+      com.zaza.housing.repository.AccountSecurityRepository accountSecurity,
+      KeycloakAuthService keycloak) {
     if (sessionDuration.isNegative()
         || sessionDuration.isZero()
         || sessionDuration.compareTo(Duration.ofDays(1)) > 0) {
@@ -49,6 +51,7 @@ public class AuthService {
           "Session duration must be positive and no longer than one day.");
     }
     this.users = users;
+    this.keycloak = keycloak;
     this.security = security;
     this.accountSecurity = accountSecurity;
     this.encoder = encoder;
@@ -60,6 +63,7 @@ public class AuthService {
 
   @Transactional
   public UserAccount register(String email, String password, String displayName) {
+    if (keycloak.enabled()) return keycloak.register(email, password, displayName);
     validatePassword(password);
     UserAccount user =
         users.create(
@@ -75,6 +79,7 @@ public class AuthService {
 
   @Transactional
   public LoginResponse login(String email, String password, String code, String recoveryCode) {
+    if (keycloak.enabled()) return keycloak.login(email, password, code, recoveryCode);
     validatePassword(password);
     var candidate = users.credentialsForLogin(EmailNormalizer.normalize(email));
     boolean matches =
@@ -97,6 +102,10 @@ public class AuthService {
 
   @Transactional
   public void logout(AuthenticatedUser user, String token) {
+    if (keycloak.enabled()) {
+      keycloak.logout(user, token);
+      return;
+    }
     users.revokeSession(TokenUtils.hashToken(token), user.id());
     audit.record(user.id(), null, "USER_LOGGED_OUT", user.id());
   }
@@ -114,6 +123,10 @@ public class AuthService {
 
   public void reauthenticate(AuthenticatedUser actor, String password) {
     validatePassword(password);
+    if (keycloak.enabled()) {
+      keycloak.confirmPassword(actor.id(), actor.email(), password);
+      return;
+    }
     var candidate = users.credentials(actor.email());
     boolean matches =
         encoder.matches(password, candidate.map(UserCredentials::passwordHash).orElse(dummyHash));

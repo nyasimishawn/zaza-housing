@@ -100,13 +100,15 @@ public class AccountSecurityRepository {
 
   public List<SecuritySessionResponse> sessions(UUID user, String current, Instant now) {
     return jdbc.query(
-        "SELECT * FROM auth_sessions WHERE user_id=? AND expires_at>? ORDER BY created_at DESC,id"
+        "SELECT s.*,coalesce(k.refresh_expires_at,s.expires_at) effective_expires_at"
+            + " FROM auth_sessions s LEFT JOIN keycloak_sessions k ON k.token_hash=s.token_hash"
+            + " WHERE s.user_id=? AND coalesce(k.refresh_expires_at,s.expires_at)>? ORDER BY s.created_at DESC,s.id"
             + " LIMIT 100",
         (rs, n) ->
             new SecuritySessionResponse(
                 rs.getObject("id", UUID.class),
                 rs.getTimestamp("created_at").toInstant(),
-                rs.getTimestamp("expires_at").toInstant(),
+                rs.getTimestamp("effective_expires_at").toInstant(),
                 rs.getString("token_hash").equals(current),
                 rs.getTimestamp("mfa_verified_at") == null
                     ? null

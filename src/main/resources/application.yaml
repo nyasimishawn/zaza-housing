@@ -37,6 +37,12 @@ management:
     health:
       show-details: never
 zaza:
+  keycloak:
+    enabled: ${ZAZA_KEYCLOAK_ENABLED:false}
+    server-url: ${ZAZA_KEYCLOAK_URL:http://localhost:9080}
+    realm: ${ZAZA_KEYCLOAK_REALM:zaza}
+    client-id: ${ZAZA_KEYCLOAK_CLIENT_ID:zaza-backend}
+    client-secret: ${ZAZA_KEYCLOAK_CLIENT_SECRET:}
   security:
     require-admin-mfa: true
     mail-mode: ${ZAZA_SECURITY_MAIL_MODE:off}

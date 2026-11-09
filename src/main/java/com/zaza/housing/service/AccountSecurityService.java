@@ -24,6 +24,7 @@ public class AccountSecurityService {
   private final SecurityMailService mail;
   private final AuditService audit;
   private final Clock clock;
+  private final KeycloakAuthService keycloak;
 
   public AccountSecurityService(
       AccountSecurityRepository repository,
@@ -32,7 +33,8 @@ public class AccountSecurityService {
       SecurityAttemptService attempts,
       SecurityMailService mail,
       AuditService audit,
-      Clock clock) {
+      Clock clock,
+      KeycloakAuthService keycloak) {
     this.repository = repository;
     this.encoder = encoder;
     this.crypto = crypto;
@@ -40,6 +42,7 @@ public class AccountSecurityService {
     this.mail = mail;
     this.audit = audit;
     this.clock = clock;
+    this.keycloak = keycloak;
   }
 
   public static String hash(String raw) {
@@ -67,6 +70,10 @@ public class AccountSecurityService {
   private void password(Map<String, Object> account, String supplied) {
     attempts.require(account.get("id").toString(), "PASSWORD_CONFIRM", 20);
     validatePassword(supplied);
+    if (keycloak.enabled()) {
+      keycloak.confirmPassword((UUID) account.get("id"), (String) account.get("email"), supplied);
+      return;
+    }
     if (!encoder.matches(supplied, (String) account.get("password_hash"))) throw unauthorized();
   }
 
@@ -235,7 +242,8 @@ public class AccountSecurityService {
     var f = repository.factor(a.id(), true);
     if (f != null && Boolean.TRUE.equals(f.get("enabled")))
       proof(a.id(), r.code(), r.recoveryCode());
-    repository.password(a.id(), encoder.encode(r.newPassword()), clock.instant());
+    if (keycloak.enabled()) keycloak.changePassword(a.id(), r.newPassword());
+    repository.password(a.id(), encoder.encode(keycloak.enabled() ? UUID.randomUUID().toString() : r.newPassword()), clock.instant());
     audit.record(a.id(), null, "PASSWORD_CHANGED", a.id());
   }
 
@@ -307,7 +315,8 @@ public class AccountSecurityService {
       throw bad("This recovery token is invalid or expired.");
     var f = repository.factor(user, true);
     if (f != null && Boolean.TRUE.equals(f.get("enabled"))) proof(user, r.code(), r.recoveryCode());
-    repository.password(user, encoder.encode(r.newPassword()), clock.instant());
+    if (keycloak.enabled()) keycloak.changePassword(user, r.newPassword());
+    repository.password(user, encoder.encode(keycloak.enabled() ? UUID.randomUUID().toString() : r.newPassword()), clock.instant());
     repository.emailVerified(user, clock.instant());
     audit.record(user, null, "PASSWORD_RECOVERED", user);
   }

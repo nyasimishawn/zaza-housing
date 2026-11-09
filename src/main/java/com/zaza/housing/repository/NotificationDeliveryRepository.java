@@ -21,7 +21,7 @@ public class NotificationDeliveryRepository {
             SELECT d.*,u.email,u.active user_active,u.email_verified_at,i.email invitation_email,i.status invitation_status,
             i.expires_at invitation_expires,i.token_hash invitation_token_hash,
             p.encrypted_phone,p.phone_hash,p.verified_at phone_verified,p.expires_at phone_expires,
-            v.encrypted_token,(v.active AND EXISTS(SELECT 1 FROM auth_sessions a WHERE a.id=v.session_id AND a.user_id=d.user_id AND a.expires_at>now())) device_active,s.timezone,s.quiet_start,s.quiet_end,
+            v.encrypted_token,(v.active AND EXISTS(SELECT 1 FROM auth_sessions a LEFT JOIN keycloak_sessions k ON k.token_hash=a.token_hash WHERE a.id=v.session_id AND a.user_id=d.user_id AND coalesce(k.refresh_expires_at,a.expires_at)>now())) device_active,s.timezone,s.quiet_start,s.quiet_end,
             coalesce(f.email,FALSE) email_enabled,coalesce(f.sms,FALSE) sms_enabled,coalesce(f.push,FALSE) push_enabled,
             EXISTS(SELECT 1 FROM notification_preferences enabled WHERE enabled.user_id=d.user_id AND enabled.email) email_any_enabled
             FROM notification_deliveries d

@@ -109,6 +109,12 @@ public class AuthRepository {
     jdbc.update("DELETE FROM auth_sessions WHERE token_hash = ? AND user_id = ?", hash, userId);
   }
 
+  public boolean rotateSession(String previousHash, String nextHash, UUID user, Instant expires) {
+    return jdbc.update(
+        "UPDATE auth_sessions SET token_hash=?,expires_at=? WHERE token_hash=? AND user_id=?",
+        nextHash, Timestamp.from(expires), previousHash, user) == 1;
+  }
+
   public List<UserAccount> listUsers(int limit, int offset) {
     return jdbc.query(
         "SELECT id, email, display_name, platform_role, created_at FROM app_users ORDER BY"

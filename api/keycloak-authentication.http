@@ -1,0 +1,26 @@
+### Set baseUrl, email and password in http-client.private.env.json.
+### Store accessToken and refreshToken privately after login/refresh; never commit them.
+POST {{baseUrl}}/api/v1/auth/register
+Content-Type: application/json
+
+{"email":"{{email}}","password":"{{password}}","displayName":"Local Keycloak User"}
+
+### Login
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{"email":"{{email}}","password":"{{password}}"}
+
+### Account
+GET {{baseUrl}}/api/v1/me
+Authorization: Bearer {{accessToken}}
+
+### Rotate; use both new tokens from the response, and discard both old tokens.
+POST {{baseUrl}}/api/v1/auth/refresh
+Content-Type: application/json
+
+{"refreshToken":"{{refreshToken}}"}
+
+### Logout current session
+POST {{baseUrl}}/api/v1/auth/logout
+Authorization: Bearer {{accessToken}}
