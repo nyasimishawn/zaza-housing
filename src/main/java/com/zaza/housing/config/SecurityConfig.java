@@ -42,6 +42,8 @@ public class SecurityConfig {
       Clock clock,
       com.zaza.housing.repository.AccountSecurityRepository security,
       @Value("${zaza.security.require-admin-mfa:true}") boolean requireMfa,
+      KeycloakSettings keycloak,
+      org.springframework.beans.factory.ObjectProvider<org.springframework.security.oauth2.jwt.JwtDecoder> decoder,
       @Qualifier("corsConfiguration") CorsConfigurationSource corsConfiguration,
       @Value("${zaza.auth.requests-per-minute}") int authLimit)
       throws Exception {
@@ -59,6 +61,7 @@ public class SecurityConfig {
                         HttpMethod.POST,
                         "/api/v1/auth/register",
                         "/api/v1/auth/login",
+                        "/api/v1/auth/refresh",
                         "/api/v1/auth/recovery/request",
                         "/api/v1/auth/recovery/reset",
                         "/api/v1/auth/email/verify")
@@ -100,7 +103,7 @@ public class SecurityConfig {
                     .accessDeniedHandler(
                         (request, response, error) -> SecurityErrors.write(response, 403)))
         .addFilterBefore(
-            new SessionAuthenticationFilter(users, clock),
+            new SessionAuthenticationFilter(users, clock, keycloak, decoder),
             UsernamePasswordAuthenticationFilter.class)
         .addFilterAfter(
             new com.zaza.housing.filter.AdminMfaFilter(security, clock, requireMfa),

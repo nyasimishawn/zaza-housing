@@ -18,10 +18,16 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class SessionAuthenticationFilter extends OncePerRequestFilter {
     private final AuthRepository users;
     private final Clock clock;
+    private final com.zaza.housing.config.KeycloakSettings keycloak;
+    private final org.springframework.beans.factory.ObjectProvider<org.springframework.security.oauth2.jwt.JwtDecoder> decoder;
 
-    public SessionAuthenticationFilter(AuthRepository users, Clock clock) {
+    public SessionAuthenticationFilter(AuthRepository users, Clock clock,
+            com.zaza.housing.config.KeycloakSettings keycloak,
+            org.springframework.beans.factory.ObjectProvider<org.springframework.security.oauth2.jwt.JwtDecoder> decoder) {
         this.users = users;
         this.clock = clock;
+        this.keycloak = keycloak;
+        this.decoder = decoder;
     }
 
     @Override
@@ -34,9 +40,17 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
             String token = authorization.substring(7);
-            if (!token.matches("[A-Za-z0-9_-]{43}")) {
+            if (token.length() > 16384 || (!keycloak.enabled() && !token.matches("[A-Za-z0-9_-]{43}"))) {
                 SecurityErrors.write(response, 401);
                 return;
+            }
+            if (keycloak.enabled()) {
+                try {
+                    decoder.getObject().decode(token);
+                } catch (org.springframework.security.oauth2.jwt.JwtException error) {
+                    SecurityErrors.write(response, 401);
+                    return;
+                }
             }
             var user = users.authenticate(TokenUtils.hashToken(token), clock.instant());
             if (user.isEmpty()) {

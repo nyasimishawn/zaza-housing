@@ -1,0 +1,18 @@
+name: zaza-auth
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5.7
+    command: ["start-dev", "--import-realm"]
+    ports:
+      - "127.0.0.1:9080:8080"
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: zaza-admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${ZAZA_KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:?Run scripts/start-keycloak.ps1 first}
+      KC_HOSTNAME: http://localhost:9080
+      ZAZA_KEYCLOAK_CLIENT_SECRET: ${ZAZA_KEYCLOAK_CLIENT_SECRET:?Run scripts/start-keycloak.ps1 first}
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+      - ./keycloak:/opt/keycloak/data/import:ro
+    restart: unless-stopped
+volumes:
+  keycloak-data:

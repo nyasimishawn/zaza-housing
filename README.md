@@ -1,5 +1,9 @@
 # Zaza backend
 
+Optional backend-managed Keycloak authentication follows the local `horizonauth` pattern.
+See [Keycloak setup and HTTP contract](docs/keycloak-authentication.md). Start its separate
+local realm/client with `.\scripts\start-keycloak.ps1 -EnableBackend`, then restart the backend.
+
 Java 24 / Spring Boot 4.1.1 / PostgreSQL. The existing Gradle wrapper is retained.
 
 Team invitations, notification preferences, reminders and optional email/SMS/push delivery are described in the [notifications contract](docs/notifications-team-invitations-contract.md).
