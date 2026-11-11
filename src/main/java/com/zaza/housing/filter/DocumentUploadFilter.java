@@ -12,6 +12,9 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.util.unit.DataSize;
 import org.springframework.web.filter.OncePerRequestFilter;
+import com.zaza.housing.enums.ApiErrorCode;
+import com.zaza.housing.exception.ApiErrors;
+import com.zaza.housing.exception.ApiException;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
@@ -42,29 +45,17 @@ public class DocumentUploadFilter extends OncePerRequestFilter {
                   ? 411
                   : request.getContentLengthLong() > REQUEST_LIMIT ? 413 : 0;
       if (status != 0) {
-        response.setStatus(status);
-        response.setHeader("Cache-Control", "no-store");
-        response.setContentType("application/problem+json");
-        response
-            .getWriter()
-            .write(
-                "{\"status\":"
-                    + status
-                    + ",\"detail\":\"Document uploads require a bounded in-memory multipart request"
-                    + " of at most 11 MB.\"}");
+        ApiErrors.write(request, response, new ApiException(
+            org.springframework.http.HttpStatus.valueOf(status),
+            "Document uploads require a bounded in-memory multipart request of at most 11 MB."));
         return;
       }
     }
     if (upload) {
       if (!uploads.tryAcquire()) {
-        response.setStatus(429);
         response.setHeader("Retry-After", "2");
-        response.setHeader("Cache-Control", "no-store");
-        response.setContentType("application/problem+json");
-        response
-            .getWriter()
-            .write(
-                "{\"status\":429,\"detail\":\"Document upload capacity is busy. Retry shortly.\"}");
+        ApiErrors.write(request, response, new ApiException(ApiErrorCode.RATE_LIMITED,
+            "Document upload capacity is busy. Retry shortly."));
         return;
       }
       try {

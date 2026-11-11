@@ -1,5 +1,6 @@
 package com.zaza.housing.service;
 
+import com.zaza.housing.enums.ApiErrorCode;
 import com.zaza.housing.exception.ApiException;
 import com.zaza.housing.model.ProcessedVideo;
 import com.zaza.housing.util.MediaProcessRunner;
@@ -31,7 +32,7 @@ public class VideoProcessingService {
     public ProcessedVideo process(MultipartFile file, Path workspace) throws IOException {
         if (file.isEmpty()) throw invalid("Upload a non-empty MP4 or MOV clip.");
         if (file.getSize() > MAX_BYTES) throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "Videos must be at most 50 MB.");
-        if (!encoders.tryAcquire()) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "Video processing is busy. Try again later.");
+        if (!encoders.tryAcquire()) throw new ApiException(ApiErrorCode.MEDIA_PROCESSING_UNAVAILABLE, "Video processing is busy. Try again later.");
         try {
             Path source = workspace.resolve("source.upload");
             // Bound the actual bytes copied, rather than trusting multipart metadata.

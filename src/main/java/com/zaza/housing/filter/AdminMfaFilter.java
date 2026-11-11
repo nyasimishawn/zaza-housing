@@ -3,6 +3,9 @@ package com.zaza.housing.filter;
 import com.zaza.housing.model.AuthenticatedUser;
 import com.zaza.housing.repository.AccountSecurityRepository;
 import com.zaza.housing.util.TokenUtils;
+import com.zaza.housing.enums.ApiErrorCode;
+import com.zaza.housing.exception.ApiErrors;
+import com.zaza.housing.exception.ApiException;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import java.io.IOException;
@@ -34,14 +37,7 @@ public class AdminMfaFilter extends OncePerRequestFilter {
         if (h == null
             || !repository.adminVerified(
                 a.id(), TokenUtils.hashToken(h.substring(7)), clock.instant())) {
-          response.setStatus(403);
-          response.setContentType("application/problem+json");
-          response.setHeader("Cache-Control", "no-store");
-          response
-              .getWriter()
-              .write(
-                  "{\"status\":403,\"detail\":\"Verify your email and multi-factor authentication"
-                      + " in Account security before using administration.\"}");
+          ApiErrors.write(request, response, new ApiException(ApiErrorCode.MFA_REQUIRED));
           return;
         }
       }

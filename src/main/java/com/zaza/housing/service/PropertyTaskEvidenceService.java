@@ -1,5 +1,6 @@
 package com.zaza.housing.service;
 
+import com.zaza.housing.enums.ApiErrorCode;
 import com.zaza.housing.dto.PropertyTaskEvidenceResponse;
 import com.zaza.housing.model.AuthenticatedUser;
 import com.zaza.housing.model.ImageContent;
@@ -76,8 +77,8 @@ public class PropertyTaskEvidenceService {
       key = storage.save(image);
     } catch (IOException e) {
       throw new com.zaza.housing.exception.ApiException(
-          org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
-          "Evidence storage is unavailable.");
+          ApiErrorCode.STORAGE_UNAVAILABLE,
+          "Evidence storage is unavailable.", e);
     }
     TransactionSynchronizationManager.registerSynchronization(
         new TransactionSynchronization() {

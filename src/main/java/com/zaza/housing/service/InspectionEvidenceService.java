@@ -1,5 +1,6 @@
 package com.zaza.housing.service;
 
+import com.zaza.housing.enums.ApiErrorCode;
 import com.zaza.housing.dto.InspectionEvidenceResponse;
 import com.zaza.housing.dto.InspectionResponse;
 import com.zaza.housing.enums.InspectionStatus;
@@ -107,7 +108,7 @@ public class InspectionEvidenceService {
       key = storage.save(image);
     } catch (IOException e) {
       throw new ApiException(
-          HttpStatus.SERVICE_UNAVAILABLE, "Inspection evidence storage is unavailable.");
+          ApiErrorCode.STORAGE_UNAVAILABLE, "Inspection evidence storage is unavailable.", e);
     }
     TransactionSynchronizationManager.registerSynchronization(
         new TransactionSynchronization() {
