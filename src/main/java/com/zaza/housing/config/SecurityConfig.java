@@ -121,7 +121,7 @@ public class SecurityConfig {
     config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
     config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Range"));
     config.setExposedHeaders(
-        List.of("Accept-Ranges", "Content-Range", "Content-Length", "Retry-After"));
+        List.of("Accept-Ranges", "Content-Range", "Content-Length", "Retry-After", "X-Request-ID"));
     config.setAllowCredentials(false);
     var source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/api/**", config);

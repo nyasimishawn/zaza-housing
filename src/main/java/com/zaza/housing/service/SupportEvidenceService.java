@@ -1,5 +1,6 @@
 package com.zaza.housing.service;
 
+import com.zaza.housing.enums.ApiErrorCode;
 import com.zaza.housing.dto.*;
 import com.zaza.housing.exception.ApiException;
 import com.zaza.housing.model.*;
@@ -98,7 +99,7 @@ public class SupportEvidenceService {
     try {
       key = storage.save(new EncryptedDocument(cipher, parts[0]));
     } catch (IOException e) {
-      throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "Evidence storage is unavailable.");
+      throw new ApiException(ApiErrorCode.STORAGE_UNAVAILABLE, "Evidence storage is unavailable.");
     }
     TransactionSynchronizationManager.registerSynchronization(
         new TransactionSynchronization() {

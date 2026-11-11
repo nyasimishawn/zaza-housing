@@ -1,5 +1,6 @@
 package com.zaza.housing.service;
 
+import com.zaza.housing.enums.ApiErrorCode;
 import com.zaza.housing.dto.ChangeVideoStatusRequest;
 import com.zaza.housing.dto.PropertyVideoResponse;
 import com.zaza.housing.dto.PublicListingResponse;
@@ -91,7 +92,7 @@ public class PropertyVideoService {
     }
 
     private static ApiException storageUnavailable() {
-        return new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "Video storage is unavailable. Try again later.");
+        return new ApiException(ApiErrorCode.STORAGE_UNAVAILABLE, "Video storage is unavailable. Try again later.");
     }
 
     public List<PropertyVideoResponse> list(AuthenticatedUser actor, UUID organization, UUID propertyId,
@@ -175,7 +176,7 @@ public class PropertyVideoService {
         if (property.status() == PropertyStatus.ARCHIVED) throw new ApiException(HttpStatus.CONFLICT, "Restore the property before editing videos.");
     }
     private static void checkVersion(PropertyVideo video, long expected) {
-        if (video.version() != expected) throw new ApiException(HttpStatus.CONFLICT, "The video has changed. Reload it before saving or publishing.");
+        if (video.version() != expected) throw new ApiException(ApiErrorCode.STALE_RECORD, "The video has changed. Reload it before saving or publishing.");
     }
     private static void requireActive(PropertyVideo video) { if (video.status() != VideoStatus.ACTIVE) throw notFound(); }
     private static ApiException notFound() { return new ApiException(HttpStatus.NOT_FOUND, "Video not found."); }

@@ -1,5 +1,6 @@
 package com.zaza.housing.service;
 
+import com.zaza.housing.enums.ApiErrorCode;
 import com.zaza.housing.exception.ApiException;
 import com.zaza.housing.repository.AccountSecurityRepository;
 import com.zaza.housing.util.SecurityCryptography;
@@ -57,7 +58,7 @@ public class SecurityMailService {
   public void requireReady() {
     if (!ready())
       throw new ApiException(
-          HttpStatus.SERVICE_UNAVAILABLE,
+          ApiErrorCode.EMAIL_DELIVERY_UNAVAILABLE,
           "Account email delivery is not configured. Contact support.");
   }
 

@@ -1,5 +1,6 @@
 package com.zaza.housing.service;
 
+import com.zaza.housing.enums.ApiErrorCode;
 import com.zaza.housing.dto.ChangeImageStatusRequest;
 import com.zaza.housing.dto.ImageReferenceRequest;
 import com.zaza.housing.dto.PropertyImageResponse;
@@ -53,7 +54,7 @@ public class PropertyImageService {
         var processed = ImageProcessor.process(file);
         final String key;
         try { key = storage.save(processed); }
-        catch (IOException error) { throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "Image storage is unavailable. Try again later."); }
+        catch (IOException error) { throw new ApiException(ApiErrorCode.STORAGE_UNAVAILABLE, "Image storage is unavailable. Try again later."); }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override public void afterCompletion(int status) {
                 if (status != STATUS_COMMITTED) {
@@ -149,7 +150,7 @@ public class PropertyImageService {
         if (property.status() == PropertyStatus.ARCHIVED) throw new ApiException(HttpStatus.CONFLICT, "Restore the property before editing images.");
     }
     private static void checkVersion(PropertyImage image, long expected) {
-        if (image.version() != expected) throw new ApiException(HttpStatus.CONFLICT, "The image has changed. Reload it before saving or publishing.");
+        if (image.version() != expected) throw new ApiException(ApiErrorCode.STALE_RECORD, "The image has changed. Reload it before saving or publishing.");
     }
     private static void requireActive(PropertyImage image) { if (image.status() != ImageStatus.ACTIVE) throw notFound(); }
     private static ApiException notFound() { return new ApiException(HttpStatus.NOT_FOUND, "Image not found."); }

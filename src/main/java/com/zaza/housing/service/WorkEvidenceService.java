@@ -1,5 +1,6 @@
 package com.zaza.housing.service;
 
+import com.zaza.housing.enums.ApiErrorCode;
 import com.zaza.housing.dto.WorkEvidenceResponse;
 import com.zaza.housing.dto.WorkView;
 import com.zaza.housing.enums.WorkParty;
@@ -100,7 +101,7 @@ public class WorkEvidenceService {
     try {
       key = storage.save(image);
     } catch (IOException e) {
-      throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "Evidence storage is unavailable.");
+      throw new ApiException(ApiErrorCode.STORAGE_UNAVAILABLE, "Evidence storage is unavailable.");
     }
     TransactionSynchronizationManager.registerSynchronization(
         new TransactionSynchronization() {

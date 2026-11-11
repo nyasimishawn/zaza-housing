@@ -1,5 +1,6 @@
 package com.zaza.housing.service;
 
+import com.zaza.housing.enums.ApiErrorCode;
 import com.zaza.housing.dto.LoginResponse;
 import com.zaza.housing.exception.ApiException;
 import com.zaza.housing.model.AuthenticatedUser;
@@ -85,7 +86,7 @@ public class AuthService {
     boolean matches =
         encoder.matches(password, candidate.map(UserCredentials::passwordHash).orElse(dummyHash));
     if (candidate.isEmpty() || !matches || !candidate.get().active()) {
-      throw new ApiException(HttpStatus.UNAUTHORIZED, "Email or password is incorrect.");
+      throw new ApiException(ApiErrorCode.INVALID_CREDENTIALS, "Email or password is incorrect.");
     }
     boolean mfa = security.getObject().verifyLogin(candidate.get().user().id(), code, recoveryCode);
     byte[] bytes = new byte[32];
