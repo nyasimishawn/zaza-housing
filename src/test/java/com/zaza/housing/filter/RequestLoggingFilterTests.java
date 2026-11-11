@@ -94,6 +94,34 @@ class RequestLoggingFilterTests {
     assertThat(MDC.get(RequestDiagnostics.MDC_KEY)).isNull();
   }
 
+  @Test void storageCauseTypesAndFramesSurviveWithoutLeakingTheirMessages() throws Exception {
+    String secret = "private-storage-path-password-user@example.test";
+    var denied = new java.nio.file.AccessDeniedException(secret);
+    denied.setStackTrace(new StackTraceElement[] {
+        new StackTraceElement("com.zaza.storage.Disk", "save", "Disk.java", 42)
+    });
+    var io = new java.io.IOException("Storage location: " + secret, denied);
+    var failure = new com.zaza.housing.exception.ApiException(
+        com.zaza.housing.enums.ApiErrorCode.STORAGE_UNAVAILABLE, "Storage is temporarily unavailable.", io);
+    var request = new MockHttpServletRequest("POST", "/upload");
+    var response = new MockHttpServletResponse();
+    new RequestLoggingFilter().doFilter(request, response, (req, res) -> { throw failure; });
+    var body = json.readTree(response.getContentAsString());
+    String requestId = response.getHeader(RequestDiagnostics.HEADER);
+    assertThat(response.getStatus()).isEqualTo(503);
+    assertThat(body.get("code").asText()).isEqualTo("STORAGE_UNAVAILABLE");
+    assertThat(body.get("requestId").asText()).isEqualTo(requestId);
+    assertThat(body.get("detail").asText()).isEqualTo("Storage is temporarily unavailable.");
+    assertThat(response.getContentAsString()).doesNotContain(secret, "IOException", "AccessDeniedException", "Disk.java");
+    assertThat(logText()).contains("STORAGE_UNAVAILABLE", "java.io.IOException",
+        "java.nio.file.AccessDeniedException", "com.zaza.storage.Disk.save(Disk.java:42)")
+        .doesNotContain(secret, "Storage location:");
+    assertThat(events.list).hasSize(2).allSatisfy(event -> {
+      assertThat(event.getMDCPropertyMap()).containsEntry(RequestDiagnostics.MDC_KEY, requestId);
+      assertThat(event.getThrowableProxy()).isNull();
+    });
+  }
+
   @Test void reusedThreadsReceiveDifferentRequestIds() throws Exception {
     var first = new MockHttpServletResponse();
     var second = new MockHttpServletResponse();

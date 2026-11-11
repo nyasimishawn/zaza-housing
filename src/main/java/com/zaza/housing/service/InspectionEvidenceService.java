@@ -108,7 +108,7 @@ public class InspectionEvidenceService {
       key = storage.save(image);
     } catch (IOException e) {
       throw new ApiException(
-          ApiErrorCode.STORAGE_UNAVAILABLE, "Inspection evidence storage is unavailable.");
+          ApiErrorCode.STORAGE_UNAVAILABLE, "Inspection evidence storage is unavailable.", e);
     }
     TransactionSynchronizationManager.registerSynchronization(
         new TransactionSynchronization() {

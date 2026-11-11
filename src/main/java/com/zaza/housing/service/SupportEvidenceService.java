@@ -99,7 +99,7 @@ public class SupportEvidenceService {
     try {
       key = storage.save(new EncryptedDocument(cipher, parts[0]));
     } catch (IOException e) {
-      throw new ApiException(ApiErrorCode.STORAGE_UNAVAILABLE, "Evidence storage is unavailable.");
+      throw new ApiException(ApiErrorCode.STORAGE_UNAVAILABLE, "Evidence storage is unavailable.", e);
     }
     TransactionSynchronizationManager.registerSynchronization(
         new TransactionSynchronization() {

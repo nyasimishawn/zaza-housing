@@ -38,6 +38,18 @@ class ApiFailureClassifierTests {
     assertThat(stale.code().retryable()).isFalse();
   }
 
+  @Test void applicationFailuresRetainTheirOriginalCauseWithoutChangingThePublicDetail() {
+    var cause = new java.nio.file.AccessDeniedException(SECRET);
+    var error = new ApiException(ApiErrorCode.STORAGE_UNAVAILABLE, "Storage is temporarily unavailable.", cause);
+    var result = ApiFailureClassifier.classify(error);
+    assertThat(result).isSameAs(error);
+    assertThat(result.getCause()).isSameAs(cause);
+    assertThat(result.code()).isEqualTo(ApiErrorCode.STORAGE_UNAVAILABLE);
+    assertThat(result.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+    assertThat(result.getMessage()).isEqualTo("Storage is temporarily unavailable.").doesNotContain(SECRET);
+    assertThat(new ApiException(ApiErrorCode.STORAGE_UNAVAILABLE).getCause()).isNull();
+  }
+
   private void check(Exception error, ApiErrorCode code, int status) {
     var result = ApiFailureClassifier.classify(error);
     assertThat(result.code()).isEqualTo(code);

@@ -121,7 +121,7 @@ public class DocumentService {
       key = storage.save(encrypted);
     } catch (IOException e) {
       throw new ApiException(
-          ApiErrorCode.STORAGE_UNAVAILABLE, "Encrypted document storage is unavailable.");
+          ApiErrorCode.STORAGE_UNAVAILABLE, "Encrypted document storage is unavailable.", e);
     }
     final String committedKey = key;
     TransactionSynchronizationManager.registerSynchronization(

@@ -58,7 +58,11 @@ idempotent: check the result of payments and other commands before resubmitting.
 Stale records and data conflicts require state review rather than blind retries.
 
 Use `new ApiException(ApiErrorCode.STALE_RECORD, "Reload the property.")` for a
-curated domain failure. The existing `(HttpStatus, String)` constructor still
+curated domain failure. When wrapping an underlying failure, pass it as the third
+argument: `new ApiException(ApiErrorCode.STORAGE_UNAVAILABLE, "Storage is unavailable.", cause)`.
+Storage catches retain the original exception so diagnostics can distinguish its
+type and stack frames; its message remains excluded from responses and logs.
+The existing `(HttpStatus, String)` constructor still
 works and assigns a general code for that status. Explicit codes are applied to
 authentication, inventory versions, image validation, and storage failures.
 

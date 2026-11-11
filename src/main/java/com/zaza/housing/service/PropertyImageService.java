@@ -54,7 +54,7 @@ public class PropertyImageService {
         var processed = ImageProcessor.process(file);
         final String key;
         try { key = storage.save(processed); }
-        catch (IOException error) { throw new ApiException(ApiErrorCode.STORAGE_UNAVAILABLE, "Image storage is unavailable. Try again later."); }
+        catch (IOException error) { throw new ApiException(ApiErrorCode.STORAGE_UNAVAILABLE, "Image storage is unavailable. Try again later.", error); }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override public void afterCompletion(int status) {
                 if (status != STATUS_COMMITTED) {

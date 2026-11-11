@@ -61,7 +61,7 @@ public class PropertyVideoService {
         });
         final Path workspace;
         try { workspace = storage.createWorkspace(); }
-        catch (IOException error) { throw storageUnavailable(); }
+        catch (IOException error) { throw storageUnavailable(error); }
         try {
             ProcessedVideo processed = processing.process(file, workspace);
             return transactions.execute(status -> {
@@ -70,7 +70,7 @@ public class PropertyVideoService {
                 checkCapacity(propertyId);
                 final String key;
                 try { key = storage.save(processed.path()); }
-                catch (IOException error) { throw storageUnavailable(); }
+                catch (IOException error) { throw storageUnavailable(error); }
                 TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                     @Override public void afterCompletion(int completion) {
                         if (completion != STATUS_COMMITTED) {
@@ -84,15 +84,15 @@ public class PropertyVideoService {
                 audit.recordSnapshot(actor.id(), organization, "PROPERTY_VIDEO_UPLOADED", id, null, result);
                 return result;
             });
-        } catch (IOException error) { throw storageUnavailable(); }
+        } catch (IOException error) { throw storageUnavailable(error); }
         finally {
             try { storage.removeWorkspace(workspace); }
             catch (IOException error) { log.warn("Could not clean a video processing workspace: {}", workspace.getFileName()); }
         }
     }
 
-    private static ApiException storageUnavailable() {
-        return new ApiException(ApiErrorCode.STORAGE_UNAVAILABLE, "Video storage is unavailable. Try again later.");
+    private static ApiException storageUnavailable(IOException cause) {
+        return new ApiException(ApiErrorCode.STORAGE_UNAVAILABLE, "Video storage is unavailable. Try again later.", cause);
     }
 
     public List<PropertyVideoResponse> list(AuthenticatedUser actor, UUID organization, UUID propertyId,

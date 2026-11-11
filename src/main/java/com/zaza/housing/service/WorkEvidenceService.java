@@ -101,7 +101,7 @@ public class WorkEvidenceService {
     try {
       key = storage.save(image);
     } catch (IOException e) {
-      throw new ApiException(ApiErrorCode.STORAGE_UNAVAILABLE, "Evidence storage is unavailable.");
+      throw new ApiException(ApiErrorCode.STORAGE_UNAVAILABLE, "Evidence storage is unavailable.", e);
     }
     TransactionSynchronizationManager.registerSynchronization(
         new TransactionSynchronization() {

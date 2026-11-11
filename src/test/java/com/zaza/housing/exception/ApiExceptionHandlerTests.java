@@ -50,6 +50,16 @@ class ApiExceptionHandlerTests {
         .andExpect(jsonPath("$.detail").value("Reload this property."));
   }
 
+  @Test void storageCausesAreKeptOutOfControllerErrorResponses() throws Exception {
+    mvc.perform(get("/probe").param("kind", "storage"))
+        .andExpect(status().isServiceUnavailable())
+        .andExpect(jsonPath("$.code").value("STORAGE_UNAVAILABLE"))
+        .andExpect(jsonPath("$.detail").value("Storage is temporarily unavailable."))
+        .andExpect(jsonPath("$.retryable").value(true))
+        .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("SECRET"))))
+        .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("IOException"))));
+  }
+
   @Test void malformedJsonAndBeanValidationAreDifferentErrors() throws Exception {
     mvc.perform(post("/probe").contentType(MediaType.APPLICATION_JSON).content("{\"SECRET_PASSWORD"))
         .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
@@ -78,6 +88,8 @@ class ApiExceptionHandlerTests {
         case "database" -> throw new CannotGetJdbcConnectionException("SELECT SECRET password");
         case "stale" -> throw new ApiException(ApiErrorCode.STALE_RECORD, "Reload this property.");
         case "upload" -> throw new MaxUploadSizeExceededException(10);
+        case "storage" -> throw new ApiException(ApiErrorCode.STORAGE_UNAVAILABLE,
+            "Storage is temporarily unavailable.", new java.io.IOException("SECRET storage path and password"));
         default -> "ok";
       };
     }

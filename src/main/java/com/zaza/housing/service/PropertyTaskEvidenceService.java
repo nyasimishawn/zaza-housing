@@ -78,7 +78,7 @@ public class PropertyTaskEvidenceService {
     } catch (IOException e) {
       throw new com.zaza.housing.exception.ApiException(
           ApiErrorCode.STORAGE_UNAVAILABLE,
-          "Evidence storage is unavailable.");
+          "Evidence storage is unavailable.", e);
     }
     TransactionSynchronizationManager.registerSynchronization(
         new TransactionSynchronization() {
