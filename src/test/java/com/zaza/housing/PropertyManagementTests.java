@@ -319,6 +319,13 @@ class PropertyManagementTests {
         var owner=portfolio("LANDLORD");var recipient=portfolio("LANDLORD");var outsider=portfolio("AGENCY");
         var property=createProperty(owner,propertyDetails("Joint home"));String path=owner.base()+"/"+property.get("id").asText();
         var proposal=ownershipProposal(owner,path,recipient,"COOWNER","25.00");
+        String senderName=jdbc.queryForObject("SELECT name FROM organizations WHERE id=?",String.class,UUID.fromString(owner.organization));
+        String recipientName=jdbc.queryForObject("SELECT name FROM organizations WHERE id=?",String.class,UUID.fromString(recipient.organization));
+        assertThat(proposal.get("fromOrganizationName").asText()).isEqualTo(senderName);
+        assertThat(proposal.get("toOrganizationName").asText()).isEqualTo(recipientName);
+        var inbox=node(success("GET","/api/v1/organizations/"+recipient.organization+"/ownership-proposals",null,recipient.account.token,200));
+        assertThat(inbox.get(0).get("toOrganizationName").asText()).isEqualTo(recipientName);
+        assertThat(inbox.get(0).get("fromOrganizationName").asText()).isEqualTo(senderName);
         success("GET",recipient.base()+"/"+property.get("id").asText(),null,recipient.account.token,404);
         String decision="/api/v1/organizations/"+recipient.organization+"/ownership-proposals/"+proposal.get("id").asText();
         success("POST",decision+"/accept",ownershipConsent(proposal),outsider.account.token,404);
