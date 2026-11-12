@@ -31,6 +31,7 @@ public class BillingService {
   private final LeaseService leaseService;
   private final BillingActivityService activity;
   private final Clock clock;
+  private final LeaseScheduleService schedule;
 
   public BillingService(
       BillingAccessService access,
@@ -38,13 +39,14 @@ public class BillingService {
       LeaseRepository leases,
       LeaseService leaseService,
       BillingActivityService activity,
-      Clock clock) {
+      Clock clock, LeaseScheduleService schedule) {
     this.access = access;
     this.billing = billing;
     this.leases = leases;
     this.leaseService = leaseService;
     this.activity = activity;
     this.clock = clock;
+    this.schedule = schedule;
   }
 
   @Transactional(readOnly = true)
@@ -68,7 +70,7 @@ public class BillingService {
           "Billing currently supports ISO currencies with two fractional digits.");
     var end = leaseService.effectiveEnd(lease, revision);
     try {
-      var rent = RentSchedule.calendar(terms, end);
+      var rent = schedule.calendar(lease.id(), terms, terms.startDate(), end);
       return new BillingPreviewResponse(
           lease.id(),
           revision.id(),
@@ -224,6 +226,7 @@ public class BillingService {
       throw BillingAccessService.conflict("Billing is already finalized.");
     var revision = leases.revision(id, lease.currentRevisionId());
     var end = leaseService.effectiveEnd(lease, revision);
+    var rates = schedule.rates(id, revision.terms().monthlyRent());
     for (var invoice : billing.scheduledInvoices(id, today())) {
       if (invoice.kind() == InvoiceKind.DEPOSIT && invoice.outstanding().signum() > 0)
         billing.credit(
@@ -234,7 +237,7 @@ public class BillingService {
       if (invoice.kind() != InvoiceKind.RENT) continue;
       LocalDate until = invoice.periodEnd().isBefore(end) ? invoice.periodEnd() : end;
       BigDecimal target =
-          RentSchedule.amount(revision.terms().monthlyRent(), invoice.periodStart(), until);
+          RentSchedule.amount(rates.floorEntry(invoice.periodStart()).getValue(), invoice.periodStart(), until);
       BigDecimal required = invoice.amount().subtract(target).subtract(invoice.credited());
       if (required.signum() <= 0) continue;
       BigDecimal excess =

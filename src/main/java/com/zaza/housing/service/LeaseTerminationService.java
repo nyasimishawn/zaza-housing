@@ -32,8 +32,9 @@ public class LeaseTerminationService {
     private final LeaseActivityService activity;
     private final LeaseReadService reads;
     private final Clock clock;
-    public LeaseTerminationService(LeaseRepository leases,LeaseAccessService access,LeaseService workflow,LeaseSignatureService signing,LeaseActivityService activity,LeaseReadService reads,Clock clock) {
-        this.leases=leases; this.access=access; this.workflow=workflow; this.signing=signing; this.activity=activity; this.reads=reads; this.clock=clock;
+    private final com.zaza.housing.repository.LeaseChangeRepository changes;
+    public LeaseTerminationService(LeaseRepository leases,LeaseAccessService access,LeaseService workflow,LeaseSignatureService signing,LeaseActivityService activity,LeaseReadService reads,Clock clock,com.zaza.housing.repository.LeaseChangeRepository changes) {
+        this.leases=leases; this.access=access; this.workflow=workflow; this.signing=signing; this.activity=activity; this.reads=reads; this.clock=clock; this.changes=changes;
     }
     @Transactional
     public LeaseTerminationPreviewResponse preview(AuthenticatedUser actor,UUID organization,UUID property,UUID id,LeaseTerminationPreviewRequest request) {
@@ -89,8 +90,11 @@ public class LeaseTerminationService {
     }
     private String proposal(RentalLease lease,LeaseParty party,LocalDate date,String message) {
         var revision=leases.revision(lease.id(),lease.currentRevisionId());
-        if(date.isBefore(LocalDate.now(clock))||!date.isBefore(revision.terms().endDate())) throw new ApiException(HttpStatus.BAD_REQUEST,"Propose an end date today or later, before the original end date.");
-        return AgreementDocuments.termination(lease.id(),revision.id(),revision.documentHash(),party,date,message);
+        if(changes.pending(lease.id())) throw LeaseAccessService.conflict("Resolve the pending lease change before proposing termination.");
+        if(date.isBefore(LocalDate.now(clock))||!date.isBefore(workflow.effectiveEnd(lease,revision))) throw new ApiException(HttpStatus.BAD_REQUEST,"Propose an end date today or later, before the current agreed end date.");
+        String addenda=changes.list(lease.id(),true).stream().map(c->c.details().id()+" "+c.details().documentHash()).collect(java.util.stream.Collectors.joining("\n"));
+        return AgreementDocuments.termination(lease.id(),revision.id(),revision.documentHash(),party,date,message)
+            +(addenda.isEmpty()?"":"Accepted addenda SHA-256 references:\n"+addenda+"\n");
     }
     private LeaseTermination pending(UUID lease,UUID endingId) {
         var ending=leases.termination(lease,endingId);
