@@ -27,6 +27,79 @@ import static org.assertj.core.api.Assertions.*;
 @ActiveProfiles("test")
 class LeaseManagementTests {
     private static final String PASSWORD="Lease-test-password-42";
+    @Test
+    void renewalRequiresIndependentConsentAndPreservesExecutionEvidence() throws Exception {
+        var i=inventory();var lease=active(i);String original=revision(lease),originalHash=hash(lease);
+        LocalDate end=LocalDate.parse(lease.get("effectiveEndDate").asText());
+        var terms=Map.of("kind","RENEWAL","effectiveDate",end.toString(),"endDate",end.plusMonths(6).toString(),"monthlyRent","27000.00","agreementText","Both parties agree to a six month renewal at the new rent.");
+        var preview=node(call("POST",i.path(lease)+"/changes/preview",Map.of("version",lease.get("version").asLong(),"terms",terms),i.owner,200));
+        var change=node(call("POST",i.path(lease)+"/changes",Map.of("version",lease.get("version").asLong(),"terms",terms,"evidence",changeEvidence(preview.get("documentHash").asText(),false)),i.owner,201));
+        lease=node(call("GET",i.path(lease),null,i.owner,200));
+        String route=i.path(lease)+"/changes/"+change.get("id").asText();
+        call("POST",route+"/accept",Map.of("version",lease.get("version").asLong(),"evidence",changeEvidence(change.get("documentHash").asText(),false)),i.owner,403);
+        call("POST",own(lease)+"/changes/"+change.get("id").asText()+"/accept",Map.of("version",lease.get("version").asLong()-1,"evidence",changeEvidence(change.get("documentHash").asText(),true)),i.tenant,409);
+        var accepted=node(call("POST",own(lease)+"/changes/"+change.get("id").asText()+"/accept",Map.of("version",lease.get("version").asLong(),"evidence",changeEvidence(change.get("documentHash").asText(),true)),i.tenant,200));
+        assertThat(accepted.get("consents").size()).isEqualTo(2);
+        var current=node(call("GET",own(lease),null,i.tenant,200));
+        assertThat(current.get("effectiveEndDate").asText()).isEqualTo(end.plusMonths(6).toString());
+        assertThat(revision(current)).isEqualTo(original);assertThat(hash(current)).isEqualTo(originalHash);
+        assertThat(current.get("signatures").size()).isEqualTo(2);
+        assertThat(node(call("GET",own(lease)+"/revisions/"+original+"/receipt",null,i.tenant,200)).get("revision").get("documentHash").asText()).isEqualTo(originalHash);
+        call("GET",route+"/document",null,account(),404);
+        assertThatThrownBy(()->jdbc.update("UPDATE lease_changes SET document='tampered' WHERE id=?",UUID.fromString(change.get("id").asText()))).isInstanceOf(Exception.class);
+    }
+
+    @Test
+    void amendmentRebuildsFutureBillingWithoutOverwritingInvoices() throws Exception {
+        var i=inventory();var lease=active(i);
+        call("POST",i.path(lease)+"/billing",Map.of("requestId",UUID.randomUUID(),"leaseVersion",lease.get("version").asLong(),"policy","CALENDAR_ACTUAL_DAYS"),i.owner,200);
+        int originalInvoices=jdbc.queryForObject("SELECT count(*) FROM billing_invoices WHERE lease_id=?",Integer.class,UUID.fromString(lease.get("id").asText()));
+        UUID leaseId=UUID.fromString(lease.get("id").asText());
+        var prepaid=jdbc.queryForMap("SELECT id,amount FROM billing_invoices WHERE lease_id=? AND kind='RENT' AND period_end>? ORDER BY period_start LIMIT 1",leaseId,today().plusDays(5));
+        call("POST",i.path(lease)+"/billing/payments",Map.of("requestId",UUID.randomUUID(),"version",0,"amount",prepaid.get("amount"),"channel","CASH","reference","RENEW-"+UUID.randomUUID(),"receivedOn",today().toString(),"reason","Prepaid rent allocated before a prospective amendment.","password",PASSWORD),i.owner,200);
+        UUID payment=jdbc.queryForObject("SELECT id FROM payment_receipts WHERE lease_id=?",UUID.class,leaseId);
+        call("POST",i.path(lease)+"/billing/payments/"+payment+"/allocations",Map.of("requestId",UUID.randomUUID(),"version",1,"invoiceId",prepaid.get("id"),"amount",prepaid.get("amount")),i.owner,200);
+        var terms=Map.of("kind","AMENDMENT","effectiveDate",today().plusDays(5).toString(),"endDate",lease.get("effectiveEndDate").asText(),"monthlyRent","30000.00","agreementText","Both parties agree to change the rent prospectively only.");
+        var preview=node(call("POST",i.path(lease)+"/changes/preview",Map.of("version",lease.get("version").asLong(),"terms",terms),i.owner,200));
+        var change=node(call("POST",i.path(lease)+"/changes",Map.of("version",lease.get("version").asLong(),"terms",terms,"evidence",changeEvidence(preview.get("documentHash").asText(),false)),i.owner,201));
+        lease=node(call("GET",own(lease),null,i.tenant,200));
+        call("POST",own(lease)+"/changes/"+change.get("id").asText()+"/accept",Map.of("version",lease.get("version").asLong(),"evidence",changeEvidence(change.get("documentHash").asText(),true)),i.tenant,200);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM billing_invoices WHERE lease_id=?",Integer.class,UUID.fromString(lease.get("id").asText()))).isGreaterThan(originalInvoices);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM billing_credits WHERE lease_id=?",Integer.class,UUID.fromString(lease.get("id").asText()))).isGreaterThan(0);
+        assertThat(node(call("GET",own(lease)+"/changes",null,i.tenant,200)).get(0).get("status").asText()).isEqualTo("ACCEPTED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM payment_allocation_reversals r JOIN payment_allocations a ON a.id=r.allocation_id WHERE a.lease_id=?",Integer.class,leaseId)).isGreaterThan(0);
+        assertThat(node(call("GET",own(lease)+"/billing",null,i.tenant,200)).get("unallocated").decimalValue()).isPositive();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM payment_refunds WHERE lease_id=?",Integer.class,leaseId)).isZero();
+    }
+
+    @Test
+    void leaseChangeNeedsCurrentDigestAndCanBeRejectedWithoutChangingTheTerm() throws Exception {
+        var i=inventory();var lease=active(i);
+        LocalDate end=LocalDate.parse(lease.get("effectiveEndDate").asText());
+        var terms=Map.of("kind","RENEWAL","effectiveDate",end.toString(),"endDate",end.plusMonths(1).toString(),"monthlyRent","25000.00","agreementText","Renewal for one additional month on the original financial terms.");
+        call("POST",i.path(lease)+"/changes",Map.of("version",lease.get("version").asLong(),"terms",terms,"evidence",changeEvidence("0".repeat(64),false)),i.owner,409);
+        var preview=node(call("POST",i.path(lease)+"/changes/preview",Map.of("version",lease.get("version").asLong(),"terms",terms),i.owner,200));
+        var change=node(call("POST",i.path(lease)+"/changes",Map.of("version",lease.get("version").asLong(),"terms",terms,"evidence",changeEvidence(preview.get("documentHash").asText(),false)),i.owner,201));
+        lease=node(call("GET",own(lease),null,i.tenant,200));
+        call("POST",own(lease)+"/changes/"+change.get("id").asText()+"/reject",reason(lease,"I decline these renewal terms."),i.tenant,200);
+        assertThat(node(call("GET",own(lease),null,i.tenant,200)).get("effectiveEndDate").asText()).isEqualTo(end.toString());
+    }
+
+    @Test
+    void currentOwnerAdministratorCanCancelAnotherRepresentativesPendingProposal() throws Exception {
+        var i=inventory();var lease=active(i);var administrator=account();
+        call("POST","/api/v1/organizations/"+i.organization+"/members",Map.of("email",administrator.email,"role","ADMIN"),i.owner,201);
+        LocalDate end=LocalDate.parse(lease.get("effectiveEndDate").asText());
+        var terms=Map.of("kind","RENEWAL","effectiveDate",end.toString(),"endDate",end.plusMonths(1).toString(),"monthlyRent","25000.00","agreementText","Renewal remains subject to the other party's acceptance.");
+        var preview=node(call("POST",i.path(lease)+"/changes/preview",Map.of("version",lease.get("version").asLong(),"terms",terms),i.owner,200));
+        var change=node(call("POST",i.path(lease)+"/changes",Map.of("version",lease.get("version").asLong(),"terms",terms,"evidence",changeEvidence(preview.get("documentHash").asText(),false)),i.owner,201));
+        lease=node(call("GET",i.path(lease),null,administrator,200));
+        var cancelled=node(call("POST",i.path(lease)+"/changes/"+change.get("id").asText()+"/cancel",reason(lease,"Current owner administrator withdraws this pending offer."),administrator,200));
+        assertThat(cancelled.get("status").asText()).isEqualTo("CANCELLED");
+        assertThat(node(call("GET",own(lease),null,i.tenant,200)).get("effectiveEndDate").asText()).isEqualTo(end.toString());
+    }
+
+    private Map<String,Object> changeEvidence(String hash,boolean tenant) { return Map.of("documentHash",hash,"typedName",tenant?"Tenant Person":"Lease Account","password",PASSWORD,"consent",true); }
     private final HttpClient client=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     @Value("${local.server.port}") int port;
     @Autowired ObjectMapper json;
