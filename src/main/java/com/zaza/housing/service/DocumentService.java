@@ -1,5 +1,6 @@
 package com.zaza.housing.service;
 
+import com.zaza.housing.enums.ApiErrorCode;
 import com.zaza.housing.dto.DocumentCommandRequest;
 import com.zaza.housing.dto.DocumentResponse;
 import com.zaza.housing.dto.DocumentRetentionRequest;
@@ -120,7 +121,7 @@ public class DocumentService {
       key = storage.save(encrypted);
     } catch (IOException e) {
       throw new ApiException(
-          HttpStatus.SERVICE_UNAVAILABLE, "Encrypted document storage is unavailable.");
+          ApiErrorCode.STORAGE_UNAVAILABLE, "Encrypted document storage is unavailable.", e);
     }
     final String committedKey = key;
     TransactionSynchronizationManager.registerSynchronization(

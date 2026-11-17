@@ -1,5 +1,8 @@
 # Zaza backend
 
+See [application errors and structured logs](docs/logging-and-errors.md) for
+error codes, request IDs, log locations, and troubleshooting.
+
 Optional backend-managed Keycloak authentication follows the local `horizonauth` pattern.
 See [Keycloak setup and HTTP contract](docs/keycloak-authentication.md). Start its separate
 local realm/client with `.\scripts\start-keycloak.ps1 -EnableBackend`, then restart the backend.

@@ -1,5 +1,6 @@
 package com.zaza.housing.util;
 
+import com.zaza.housing.enums.ApiErrorCode;
 import com.zaza.housing.exception.ApiException;
 import com.zaza.housing.model.ProcessedImage;
 import java.awt.Graphics2D;
@@ -114,6 +115,6 @@ public final class ImageProcessor {
   }
 
   private static ApiException invalid(String message) {
-    return new ApiException(HttpStatus.BAD_REQUEST, message);
+    return new ApiException(ApiErrorCode.INVALID_FILE, message);
   }
 }

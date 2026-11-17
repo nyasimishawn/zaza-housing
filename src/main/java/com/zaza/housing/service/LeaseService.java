@@ -54,6 +54,8 @@ public class LeaseService {
     private final BillingGuardService billingGuard;
     private final WorkCheckoutGuard workGuard;
     private final InspectionGuardService inspectionGuard;
+    private final LeaseScheduleService schedule;
+    private final com.zaza.housing.repository.LeaseChangeRepository changes;
     public LeaseService(
             LeaseRepository leases,
             RentalApplicationRepository applications,
@@ -68,7 +70,9 @@ public class LeaseService {
             Clock clock,
             BillingGuardService billingGuard,
             WorkCheckoutGuard workGuard,
-            InspectionGuardService inspectionGuard) {
+            InspectionGuardService inspectionGuard,
+            LeaseScheduleService schedule,
+            com.zaza.housing.repository.LeaseChangeRepository changes) {
         this.leases = leases;
         this.applications = applications;
         this.inventory = inventory;
@@ -83,6 +87,7 @@ public class LeaseService {
         this.billingGuard = billingGuard;
         this.workGuard = workGuard;
         this.inspectionGuard = inspectionGuard;
+        this.schedule=schedule; this.changes=changes;
     }
     @Transactional
     public LeaseResponse create(AuthenticatedUser actor,UUID organization,UUID propertyId,CreateLeaseRequest request) {
@@ -202,6 +207,7 @@ public class LeaseService {
         var ending=leases.openTermination(id);
         boolean terminated=ending.isPresent()&&ending.get().details().status()==LeaseTerminationStatus.ACCEPTED;
         if(today().isBefore(effectiveEnd(previous,revision))) throw LeaseAccessService.conflict("The agreed end date has not been reached.");
+        for(var change:changes.list(id,false)) if(change.details().status().equals("PENDING")) changes.resolve(change.details().id(),"CANCELLED");
         if(ending.isPresent()&&ending.get().details().status()==LeaseTerminationStatus.PENDING) leases.terminationStatus(ending.get().details().id(),LeaseTerminationStatus.CANCELLED);
         var unit=inventory.unit(property,previous.unitId()).orElseThrow();
         inspectionGuard.checkout(previous);
@@ -237,7 +243,7 @@ public class LeaseService {
     }
     public LocalDate effectiveEnd(RentalLease lease,LeaseRevision revision) {
         return leases.openTermination(lease.id()).filter(ending->ending.details().status()==LeaseTerminationStatus.ACCEPTED)
-                .map(ending->ending.details().proposedEndDate()).orElse(revision.terms().endDate());
+                .map(ending->ending.details().proposedEndDate()).orElseGet(()->schedule.end(lease.id(),revision.terms().endDate()));
     }
     private void activeTenant(UUID id) { if(users.findById(id).isEmpty()) throw LeaseAccessService.conflict("The tenant account is no longer active."); }
     private void requireActive(Property property) { if(property.status()!=PropertyStatus.ACTIVE) throw LeaseAccessService.conflict("An active property is required for drafting, signing, or activation."); }

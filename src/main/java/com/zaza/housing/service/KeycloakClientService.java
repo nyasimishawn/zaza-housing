@@ -1,5 +1,6 @@
 package com.zaza.housing.service;
 
+import com.zaza.housing.enums.ApiErrorCode;
 import com.zaza.housing.config.KeycloakSettings;
 import com.zaza.housing.dto.KeycloakTokenResponse;
 import com.zaza.housing.exception.ApiException;
@@ -45,7 +46,7 @@ public class KeycloakClientService {
       return result;
     } catch (RestClientResponseException error) {
       if (error.getStatusCode().value() == 400 || error.getStatusCode().value() == 401)
-        throw new ApiException(HttpStatus.UNAUTHORIZED, "Credentials or refresh token are invalid, or the identity requires attention in Keycloak.");
+        throw new ApiException(ApiErrorCode.INVALID_CREDENTIALS, "Credentials or refresh token are invalid, or the identity requires attention in Keycloak.");
       throw unavailable();
     } catch (RestClientException error) { throw unavailable(); }
   }
@@ -121,6 +122,6 @@ public class KeycloakClientService {
   }
 
   public static ApiException unavailable() {
-    return new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "Keycloak authentication is unavailable. Check the local container and backend configuration.");
+    return new ApiException(ApiErrorCode.AUTHENTICATION_UNAVAILABLE, "Keycloak authentication is unavailable. Check the local container and backend configuration.");
   }
 }

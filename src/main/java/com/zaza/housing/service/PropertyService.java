@@ -1,5 +1,6 @@
 package com.zaza.housing.service;
 
+import com.zaza.housing.enums.ApiErrorCode;
 import com.zaza.housing.dto.ChangePropertyManagementRequest;
 import com.zaza.housing.dto.ChangePropertyStatusRequest;
 import com.zaza.housing.dto.ChangeUnitStatusRequest;
@@ -232,7 +233,7 @@ public class PropertyService {
     }
 
     private static void checkVersion(long actual, long expected) {
-        if (actual != expected) throw new ApiException(HttpStatus.CONFLICT, "The record has changed. Reload it before saving.");
+        if (actual != expected) throw new ApiException(ApiErrorCode.STALE_RECORD, "The record has changed. Reload it before saving.");
     }
 
     private static void validate(PropertyDetails details) {

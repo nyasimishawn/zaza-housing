@@ -314,6 +314,87 @@ class PropertyManagementTests {
         assertThat(denied.headers().firstValue("Access-Control-Allow-Origin")).isEmpty();
     }
 
+    @Test
+    void coownershipRequiresRecipientConsentAndDoesNotGrantOperationalAccess() throws Exception {
+        var owner=portfolio("LANDLORD");var recipient=portfolio("LANDLORD");var outsider=portfolio("AGENCY");
+        var property=createProperty(owner,propertyDetails("Joint home"));String path=owner.base()+"/"+property.get("id").asText();
+        var proposal=ownershipProposal(owner,path,recipient,"COOWNER","25.00");
+        String senderName=jdbc.queryForObject("SELECT name FROM organizations WHERE id=?",String.class,UUID.fromString(owner.organization));
+        String recipientName=jdbc.queryForObject("SELECT name FROM organizations WHERE id=?",String.class,UUID.fromString(recipient.organization));
+        assertThat(proposal.get("fromOrganizationName").asText()).isEqualTo(senderName);
+        assertThat(proposal.get("toOrganizationName").asText()).isEqualTo(recipientName);
+        var inbox=node(success("GET","/api/v1/organizations/"+recipient.organization+"/ownership-proposals",null,recipient.account.token,200));
+        assertThat(inbox.get(0).get("toOrganizationName").asText()).isEqualTo(recipientName);
+        assertThat(inbox.get(0).get("fromOrganizationName").asText()).isEqualTo(senderName);
+        success("GET",recipient.base()+"/"+property.get("id").asText(),null,recipient.account.token,404);
+        String decision="/api/v1/organizations/"+recipient.organization+"/ownership-proposals/"+proposal.get("id").asText();
+        success("POST",decision+"/accept",ownershipConsent(proposal),outsider.account.token,404);
+        var accepted=node(success("POST",decision+"/accept",ownershipConsent(proposal),recipient.account.token,200));
+        assertThat(accepted.get("consents").size()).isEqualTo(2);
+        var interests=node(success("GET",path+"/ownership",null,owner.account.token,200));
+        assertThat(interests.get(0).get("sharePercent").decimalValue()).isEqualByComparingTo("75.00");
+        assertThat(interests.get(1).get("sharePercent").decimalValue()).isEqualByComparingTo("25.00");
+        success("GET",recipient.base()+"/"+property.get("id").asText(),null,recipient.account.token,404);
+        assertThatThrownBy(()->jdbc.update("UPDATE property_ownership_proposals SET share_percent=99 WHERE id=?",UUID.fromString(proposal.get("id").asText()))).isInstanceOf(Exception.class);
+        var current=node(success("GET",path,null,owner.account.token,200));
+        success("POST",path+"/ownership/preview",Map.of("version",current.get("version").asLong(),"terms",Map.of("kind","COOWNER","organizationId",outsider.organization,"sharePercent","75.00","reason","A share exceeding the controlling owner's remainder")),owner.account.token,400);
+        success("POST",path+"/ownership/preview",Map.of("version",current.get("version").asLong(),"terms",Map.of("kind","TRANSFER","organizationId",outsider.organization,"sharePercent","100.00","reason","Transfer while another interest is active")),owner.account.token,409);
+    }
+
+    @Test
+    void fullTransferNeedsSeparateRecipientAndRevokesOldPropertyAccess() throws Exception {
+        var owner=portfolio("LANDLORD");var recipient=portfolio("AGENCY");
+        var property=createProperty(owner,propertyDetails("Vacant transfer"));String path=owner.base()+"/"+property.get("id").asText();
+        success("PATCH",path+"/status",status(0,"ACTIVE"),owner.account.token,200);
+        var unit=node(success("POST",path+"/units",unitDetails("Transfer unit"),owner.account.token,201));
+        var listing=node(success("POST",path+"/listings",Map.of("unitId",unit.get("id").asText(),"details",Map.of("title","Vacant property rental","description","A rental offer withdrawn when ownership changes.","showExactLocation",false)),owner.account.token,201));
+        success("POST",path+"/listings/"+listing.get("id").asText()+"/publish",Map.of("version",0,"propertyVersion",1,"unitVersion",0),owner.account.token,200);
+        String publicOffer="/api/v1/listings/"+listing.get("id").asText();
+        success("GET",publicOffer,null,null,200);
+        var proposal=ownershipProposal(owner,path,recipient,"TRANSFER","100.00");
+        success("GET",publicOffer,null,null,200);
+        String decision="/api/v1/organizations/"+recipient.organization+"/ownership-proposals/"+proposal.get("id").asText();
+        success("POST",decision+"/accept",ownershipConsent(proposal),recipient.account.token,200);
+        success("GET",path,null,owner.account.token,404);
+        success("GET",publicOffer,null,null,404);
+        var transferred=node(success("GET",recipient.base()+"/"+property.get("id").asText(),null,recipient.account.token,200));
+        assertThat(transferred.get("ownerOrganizationId").asText()).isEqualTo(recipient.organization);
+        assertThat(transferred.get("managerOrganizationId").isNull()).isTrue();
+        success("POST",decision+"/accept",ownershipConsent(proposal),recipient.account.token,409);
+    }
+
+    @Test
+    void ownershipChangesRejectStalePropertyVersionsAndAllowCancellation() throws Exception {
+        var owner=portfolio("LANDLORD");var recipient=portfolio("LANDLORD");
+        var property=createProperty(owner,propertyDetails("Changed after proposal"));String path=owner.base()+"/"+property.get("id").asText();
+        var proposal=ownershipProposal(owner,path,recipient,"COOWNER","20.00");
+        success("PUT",path,edit(proposal.get("propertyVersion").asLong(),propertyDetails("New property details")),owner.account.token,200);
+        String item="/ownership-proposals/"+proposal.get("id").asText();
+        success("POST","/api/v1/organizations/"+recipient.organization+item+"/accept",ownershipConsent(proposal),recipient.account.token,409);
+        success("POST","/api/v1/organizations/"+owner.organization+item+"/cancel",Map.of("version",0,"message","Property changed; reviewing again."),owner.account.token,200);
+        assertThat(node(success("GET",path+"/ownership",null,owner.account.token,200)).size()).isEqualTo(1);
+    }
+
+    @Test
+    void transferCannotMoveOccupiedUnitsOrBypassAnOrdinaryMember() throws Exception {
+        var owner=portfolio("LANDLORD");var recipient=portfolio("LANDLORD");var member=account();addMember(owner,member,"MEMBER");
+        var property=createProperty(owner,propertyDetails("Occupied transfer blocked"));String path=owner.base()+"/"+property.get("id").asText();
+        var unit=unitDetails("Occupied");unit.put("availability","OCCUPIED");success("POST",path+"/units",unit,owner.account.token,201);
+        var request=Map.of("version",0,"terms",Map.of("kind","TRANSFER","organizationId",recipient.organization,"sharePercent","100.00","reason","Attempted occupied property transfer"));
+        success("POST",path+"/ownership/preview",request,owner.account.token,409);
+        success("POST",path+"/ownership/preview",request,member.token,403);
+    }
+
+    private JsonNode ownershipProposal(Portfolio owner,String path,Portfolio recipient,String kind,String share) throws Exception {
+        var property=node(success("GET",path,null,owner.account.token,200));
+        var terms=Map.of("kind",kind,"organizationId",recipient.organization,"sharePercent",share,"reason","Agreed business ownership interest change.");
+        var preview=node(success("POST",path+"/ownership/preview",Map.of("version",property.get("version").asLong(),"terms",terms),owner.account.token,200));
+        return node(success("POST",path+"/ownership",Map.of("version",property.get("version").asLong(),"terms",terms,"evidence",Map.of("documentHash",preview.get("documentHash").asText(),"typedName","Property test","password",PASSWORD,"consent",true)),owner.account.token,201));
+    }
+    private Map<String,Object> ownershipConsent(JsonNode proposal) {
+        return Map.of("version",proposal.get("propertyVersion").asLong(),"evidence",Map.of("documentHash",proposal.get("documentHash").asText(),"typedName","Property test","password",PASSWORD,"consent",true));
+    }
+
     private Portfolio portfolio(String type) throws Exception {
         Account actor = account();
         JsonNode organization = node(success("POST", "/api/v1/organizations", Map.of("name", "Property test organization", "type", type), actor.token, 201));

@@ -1,5 +1,6 @@
 package com.zaza.housing.service;
 
+import com.zaza.housing.enums.ApiErrorCode;
 import com.zaza.housing.dto.CreateListingRequest;
 import com.zaza.housing.dto.EnquiryListingResponse;
 import com.zaza.housing.dto.ListingSearchRequest;
@@ -165,7 +166,7 @@ public class ListingService {
     }
 
     private static void checkVersion(long actual, long expected) {
-        if (actual != expected) throw conflict("The listing or source inventory has changed. Reload and review it before publishing or saving.");
+        if (actual != expected) throw new ApiException(ApiErrorCode.STALE_RECORD, "The listing or source inventory has changed. Reload and review it before publishing or saving.");
     }
     private static void requireOpen(Property property) {
         if (property.status() == PropertyStatus.ARCHIVED) throw conflict("Restore the property before editing listings.");

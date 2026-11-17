@@ -16,10 +16,12 @@ import org.springframework.stereotype.Service;
 public class InspectionGuardService {
   private final InspectionRepository inspections;
   private final LeaseRepository leases;
+  private final LeaseScheduleService schedule;
 
-  public InspectionGuardService(InspectionRepository inspections, LeaseRepository leases) {
+  public InspectionGuardService(InspectionRepository inspections, LeaseRepository leases, LeaseScheduleService schedule) {
     this.inspections = inspections;
     this.leases = leases;
+    this.schedule = schedule;
   }
 
   public void activation(UUID lease) {
@@ -61,7 +63,7 @@ public class InspectionGuardService {
             .openTermination(lease.id())
             .filter(t -> t.details().status() == LeaseTerminationStatus.ACCEPTED)
             .map(t -> t.details().proposedEndDate())
-            .orElse(revision.terms().endDate());
+            .orElseGet(() -> schedule.end(lease.id(), revision.terms().endDate()));
     return (lease.activatedAt() == null || !observed.isBefore(lease.activatedAt()))
         && !observed.atZone(ZoneOffset.UTC).toLocalDate().isBefore(end.minusDays(7));
   }

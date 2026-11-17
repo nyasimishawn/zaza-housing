@@ -25,7 +25,8 @@ public class LeaseReadService {
     private final LeaseRepository leases;
     private final LeaseAccessService access;
     private final PropertyService properties;
-    public LeaseReadService(LeaseRepository leases,LeaseAccessService access,PropertyService properties) { this.leases=leases; this.access=access; this.properties=properties; }
+    private final LeaseScheduleService schedule;
+    public LeaseReadService(LeaseRepository leases,LeaseAccessService access,PropertyService properties,LeaseScheduleService schedule) { this.leases=leases; this.access=access; this.properties=properties; this.schedule=schedule; }
     public LeaseResponse tenant(AuthenticatedUser actor,UUID id) { return response(access.tenant(actor,id,false),true); }
     public LeaseResponse manager(AuthenticatedUser actor,UUID organization,UUID property,UUID id) { return response(access.manager(actor,organization,property,id,false),false); }
     public List<LeaseResponse> list(AuthenticatedUser actor,UUID organization,UUID property,LeaseStatus status,int limit,int offset) {
@@ -45,7 +46,7 @@ public class LeaseReadService {
         LeaseRevision revision=leases.revision(lease.id(),tenant?lease.sharedRevisionId():lease.currentRevisionId());
         var termination=leases.openTermination(lease.id()).map(LeaseTermination::details).orElse(null);
         return new LeaseResponse(lease.id(),lease.applicationId(),lease.status(),lease.version(),projection(revision),leases.signatures(revision.id()),termination,
-                termination!=null&&termination.status()==LeaseTerminationStatus.ACCEPTED?termination.proposedEndDate():revision.terms().endDate(),
+                termination!=null&&termination.status()==LeaseTerminationStatus.ACCEPTED?termination.proposedEndDate():schedule.end(lease.id(),revision.terms().endDate()),
                 lease.activatedAt(),lease.closedAt(),lease.unitReleasedAt(),lease.createdAt(),lease.updatedAt());
     }
     public RentalLease authorize(AuthenticatedUser actor,UUID organization,UUID property,UUID id) {

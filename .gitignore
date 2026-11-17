@@ -55,3 +55,6 @@ http-client.private.env.json
 .local-map-tiles/
 
 .local-notification-deliveries/
+
+# Structured application logs (never commit request diagnostics).
+logs/
