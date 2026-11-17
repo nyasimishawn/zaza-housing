@@ -7,21 +7,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.Clock;
-import java.util.HashMap;
-import java.util.Map;
-import org.springframework.beans.factory.annotation.Value;
+import com.zaza.housing.util.BoundedRateLimiter;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 public class MapTileRateLimitFilter extends OncePerRequestFilter {
-  private final Clock clock;
-  private final int limit;
-  private final Map<String, Integer> requests = new HashMap<>();
-  private long minute = -1;
+  private final BoundedRateLimiter requests;
 
   public MapTileRateLimitFilter(Clock clock, int limit) {
     if (limit < 1) throw new IllegalArgumentException("Tile request limit must be positive.");
-    this.clock = clock;
-    this.limit = limit;
+    this.requests = new BoundedRateLimiter(clock, limit, 10000);
   }
 
   @Override
@@ -29,16 +23,7 @@ public class MapTileRateLimitFilter extends OncePerRequestFilter {
       throws ServletException, IOException {
     if ("GET".equals(request.getMethod())
         && request.getServletPath().startsWith("/api/v1/discovery/tiles/")) {
-      boolean allowed;
-      synchronized (requests) {
-        long current = clock.instant().getEpochSecond() / 60;
-        if (minute != current) { requests.clear(); minute = current; }
-        String address = request.getRemoteAddr();
-        int count = requests.getOrDefault(address, 0);
-        allowed = count < limit && (requests.containsKey(address) || requests.size() < 10000);
-        if (allowed) requests.put(address, count + 1);
-      }
-      if (!allowed) {
+      if (!requests.allow(request.getRemoteAddr())) {
         response.setHeader("Retry-After", "60");
         SecurityErrors.write(response, 429);
         return;

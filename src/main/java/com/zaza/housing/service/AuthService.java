@@ -78,6 +78,21 @@ public class AuthService {
     return user;
   }
 
+  public void requestRegistration(String email, String password, String displayName) {
+    String normalized = EmailNormalizer.normalize(email);
+    try {
+      // The public endpoint acknowledges both new and existing identities without
+      // returning profile data. Preserve internal account creation for provisioning.
+      transactions.executeWithoutResult(status -> register(normalized, password, displayName));
+    } catch (org.springframework.dao.DuplicateKeyException duplicate) {
+      if (users.credentials(normalized).isEmpty()) throw duplicate;
+    } catch (ApiException conflict) {
+      if (!keycloak.enabled() || conflict.status() != HttpStatus.CONFLICT) throw conflict;
+      // Keycloak's early collision path must perform password work as well.
+      encoder.matches(password, dummyHash);
+    }
+  }
+
   public LoginResponse login(String email, String password) {
     return login(email, password, null, null);
   }

@@ -1,4 +1,4 @@
-# Security remediation — 16 November 2026
+# Security remediation — updated 17 November 2026
 
 Direct member provisioning is an explicit owner/administrator action and now requires an active account with a verified email. Unregistered and unverified recipients receive the same failure. Team invitations remain the preferred workflow when recipient acceptance is required. Review existing memberships of unverified accounts separately; this patch does not revoke existing access automatically.
 
@@ -12,7 +12,13 @@ Media stores retain 256 MiB of filesystem headroom; video workspaces additionall
 
 The map cache uses an in-memory access-order index, evicts least recently used tiles within its configured byte budget, and caps entries at 20,000. It indexes existing files once, removes stale files and empty coordinate directories, and permits four simultaneous upstream fetches without an additional fetch wait queue. Public tile requests have a separate 240-request/minute per-peer limit (`zaza.discovery.tile-requests-per-minute`); authentication limits are independent. Use one writer per tile-cache directory; replicas should use separate cache directories. Cross-replica limits require an ingress/shared rate limiter.
 
-Forwarded headers are ignored by default. For an ingress that replaces client-supplied forwarding headers, set `ZAZA_FORWARD_HEADERS_STRATEGY=native` and `ZAZA_TRUSTED_PROXY_REGEX` to an anchored regex matching only that ingress's peer addresses. The default trusted pattern covers loopback only. Do not use `.*` or enable framework forwarding that trusts arbitrary peers. Check two distinct client IPs through the actual ingress and confirm independent buckets before exposure. The ingress must also enforce request-body size/time limits.
+Native forwarding is enabled by default, with only loopback peers trusted. For a remote ingress that replaces client-supplied forwarding headers, set `ZAZA_TRUSTED_PROXY_REGEX` to an anchored regex matching only that ingress's peer addresses. Do not use `.*` or enable framework forwarding that trusts arbitrary peers. Check two distinct client IPs through the actual ingress and confirm independent buckets before exposure. The ingress must also enforce request-body size/time limits.
+
+Authentication and map request limiters keep at most 10,000 client buckets each. When full, each evicts its least recently used bucket rather than refusing every new client. Fixed windows reset each minute. Under heavy address churn a cold client's bucket can be evicted; use ingress or shared limits for distributed abuse. Invitation creation, resend and cancellation use the real `/api/v1/organizations/{org}/invitations` route and are covered by the authentication limiter.
+
+Public registration returns the same HTTP 202 acknowledgement for an accepted new request and an existing email, without exposing user/profile fields or changing an existing password. Internal provisioning still returns the created account. Automatic signup and immediate login remain supported: a combined register-and-login probe can still distinguish a newly created identity. Eliminating that oracle requires an email-verification-first account flow. The per-email login quota also permits deliberate temporary lockouts; review recovery and monitoring when deploying it.
+
+The retained-media migration is V33. Develop's existing V31 and V32 migrations remain unchanged. The security branch includes Develop's structured diagnostics and lease/property changes; do not deploy the older branch base.
 
 Deployment work remains: verify actual hosting headers, protect and supply Android release-signing credentials, check live Firebase rules and API-key restrictions, review historical Google Maps key exposure and rotate/restrict any affected key, and use separate restricted runtime and migration database roles. No cloud credentials, stored accounts, database grants, live services or production data are changed by the source patch.
 

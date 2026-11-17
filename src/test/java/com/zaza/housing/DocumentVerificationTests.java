@@ -1697,15 +1697,12 @@ class DocumentVerificationTests {
 
   private Account account() throws Exception {
     String email = UUID.randomUUID() + "@example.com";
-    UUID id =
-        id(
-            node(
-                call(
+    call(
                     "POST",
                     "/api/v1/auth/register",
                     Map.of("email", email, "password", PASSWORD, "displayName", "Lease Account"),
-                    null,
-                    201)));
+                    null, 202);
+    UUID id = jdbc.queryForObject("SELECT id FROM app_users WHERE email=?", UUID.class, email);
     Account account = new Account(id, email);
     login(account);
     return account;

@@ -3,6 +3,7 @@ package com.zaza.housing.controller;
 import com.zaza.housing.dto.LoginRequest;
 import com.zaza.housing.dto.LoginResponse;
 import com.zaza.housing.dto.RegisterRequest;
+import com.zaza.housing.dto.RegistrationResponse;
 import com.zaza.housing.dto.RefreshTokenRequest;
 import com.zaza.housing.service.KeycloakAuthService;
 import com.zaza.housing.model.AuthenticatedUser;
@@ -32,9 +33,10 @@ public class AuthController {
   }
 
   @PostMapping("/auth/register")
-  @ResponseStatus(HttpStatus.CREATED)
-  public UserAccount register(@Valid @RequestBody RegisterRequest request) {
-    return auth.register(request.email(), request.password(), request.displayName());
+  @ResponseStatus(HttpStatus.ACCEPTED)
+  public RegistrationResponse register(@Valid @RequestBody RegisterRequest request) {
+    auth.requestRegistration(request.email(), request.password(), request.displayName());
+    return RegistrationResponse.accepted();
   }
 
   @PostMapping("/auth/login")

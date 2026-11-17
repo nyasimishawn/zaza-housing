@@ -559,8 +559,7 @@ class CaretakerOperationsTests {
                 "POST",
                 "/api/v1/auth/register",
                 Map.of("email", email, "password", PASSWORD, "displayName", "Property test"),
-                null,
-                201));
+                null, 202));
     JsonNode loggedIn =
         node(
             success(
@@ -571,7 +570,7 @@ class CaretakerOperationsTests {
                 200));
     jdbc.update("UPDATE app_users SET email_verified_at=now() WHERE email=?", email);
         return new Account(
-        UUID.fromString(registered.get("id").asText()),
+        jdbc.queryForObject("SELECT id FROM app_users WHERE email=?", UUID.class, email),
         email,
         loggedIn.get("accessToken").asText());
   }

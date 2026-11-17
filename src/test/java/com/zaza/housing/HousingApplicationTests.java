@@ -44,16 +44,16 @@ class HousingApplicationTests {
         String email = UUID.randomUUID() + "@example.com";
         var response = call("POST", "/api/v1/auth/register", Map.of("email", email.toUpperCase(),
                 "password", PASSWORD, "displayName", "Test account", "platformRole", "PLATFORM_ADMIN"), null);
-        assertThat(response.statusCode()).isEqualTo(201);
-        JsonNode account = json.readTree(response.body());
-        assertThat(account.get("email").asText()).isEqualTo(email);
-        assertThat(account.get("platformRole").asText()).isEqualTo("USER");
-        assertThat(response.body()).doesNotContain("password", PASSWORD);
+        assertThat(response.statusCode()).isEqualTo(202);
+        assertThat(response.body()).doesNotContain("password", PASSWORD, "platformRole", "displayName", email);
+        assertThat(jdbc.queryForObject("SELECT platform_role FROM app_users WHERE email=?", String.class, email)).isEqualTo("USER");
         String hash = jdbc.queryForObject("SELECT password_hash FROM app_users WHERE email = ?", String.class, email);
         assertThat(hash).isNotEqualTo(PASSWORD);
         assertThat(encoder.matches(PASSWORD, hash)).isTrue();
-        assertThat(call("POST", "/api/v1/auth/register", Map.of("email", email,
-                "password", PASSWORD, "displayName", "Duplicate"), null).statusCode()).isEqualTo(409);
+        var duplicate = call("POST", "/api/v1/auth/register", Map.of("email", email,
+                "password", PASSWORD, "displayName", "Duplicate"), null);
+        assertThat(duplicate.statusCode()).isEqualTo(202);
+        assertThat(duplicate.body()).isEqualTo(response.body());
         assertThat(call("POST", "/api/v1/auth/register", Map.of("email", UUID.randomUUID() + "@example.com",
                 "password", "é".repeat(40), "displayName", "Too many UTF-8 bytes"), null).statusCode()).isEqualTo(400);
     }
@@ -178,8 +178,8 @@ class HousingApplicationTests {
         String email = UUID.randomUUID() + "@example.com";
         var response = call("POST", "/api/v1/auth/register", Map.of("email", email,
                 "password", PASSWORD, "displayName", "Foundation test"), null);
-        assertThat(response.statusCode()).isEqualTo(201);
-        UUID id = UUID.fromString(json.readTree(response.body()).get("id").asText());
+        assertThat(response.statusCode()).isEqualTo(202);
+        UUID id = jdbc.queryForObject("SELECT id FROM app_users WHERE email=?", UUID.class, email);
         jdbc.update("UPDATE app_users SET email_verified_at=now() WHERE email=?", email);
         return new Account(id, email, login(email));
     }

@@ -30,6 +30,22 @@ class SecurityRemediationTests {
   final HttpClient client = HttpClient.newHttpClient();
 
   @Test
+  void registrationDoesNotDiscloseOrOverwriteAnExistingAccount() throws Exception {
+    String email = UUID.randomUUID() + "@example.test";
+    var first = call("POST", "/api/v1/auth/register", Map.of("email", email,
+        "password", PASSWORD, "displayName", "Original name"), null);
+    assertThat(first.statusCode()).isEqualTo(202);
+    String originalHash = jdbc.queryForObject("SELECT password_hash FROM app_users WHERE email=?", String.class, email);
+    var duplicate = call("POST", "/api/v1/auth/register", Map.of("email", email,
+        "password", "Different-registration-password-42", "displayName", "Replacement name"), null);
+    assertThat(duplicate.statusCode()).isEqualTo(first.statusCode());
+    assertThat(duplicate.body()).isEqualTo(first.body());
+    assertThat(first.body()).doesNotContain(email, "id", "platformRole", "Original name");
+    assertThat(jdbc.queryForObject("SELECT password_hash FROM app_users WHERE email=?", String.class, email)).isEqualTo(originalHash);
+    assertThat(call("POST", "/api/v1/auth/login", Map.of("email", email, "password", PASSWORD), null).statusCode()).isEqualTo(200);
+  }
+
+  @Test
   void managerCannotAddUnverifiedIdentityButCanProvisionVerifiedRecipient() throws Exception {
     var owner = account(); var target = account();
     var org = call("POST", "/api/v1/organizations", Map.of("name", "Verified members", "type", "LANDLORD"), owner.token);
@@ -117,8 +133,8 @@ class SecurityRemediationTests {
   Account account() throws Exception {
     String email = UUID.randomUUID() + "@example.test";
     var registered = call("POST", "/api/v1/auth/register", Map.of("email", email, "password", PASSWORD, "displayName", "Security fixture"), null);
-    assertThat(registered.statusCode()).isEqualTo(201);
-    UUID id = UUID.fromString(json.readTree(registered.body()).get("id").asText());
+    assertThat(registered.statusCode()).isEqualTo(202);
+    UUID id = jdbc.queryForObject("SELECT id FROM app_users WHERE email=?", UUID.class, email);
     var login = call("POST", "/api/v1/auth/login", Map.of("email", email, "password", PASSWORD), null);
     assertThat(login.statusCode()).isEqualTo(200);
     return new Account(id, email, json.readTree(login.body()).get("accessToken").asText());

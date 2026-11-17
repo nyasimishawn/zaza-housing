@@ -88,8 +88,8 @@ class WorkspaceMembershipTests {
         String email = UUID.randomUUID() + "@example.test";
         var response = call("POST", "/api/v1/auth/register", Map.of("email", email,
                 "password", PASSWORD, "displayName", "Workspace contract"), null);
-        assertThat(response.statusCode()).isEqualTo(201);
-        UUID id = UUID.fromString(json.readTree(response.body()).get("id").asText());
+        assertThat(response.statusCode()).isEqualTo(202);
+        UUID id = jdbc.queryForObject("SELECT id FROM app_users WHERE email=?", UUID.class, email);
         var login = call("POST", "/api/v1/auth/login", Map.of("email", email, "password", PASSWORD), null);
         assertThat(login.statusCode()).isEqualTo(200);
         jdbc.update("UPDATE app_users SET email_verified_at=now() WHERE email=?", email);

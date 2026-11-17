@@ -572,7 +572,8 @@ class LeaseManagementTests {
     }
     private Account account() throws Exception {
         String email=UUID.randomUUID()+"@example.com";
-        UUID id=id(node(call("POST","/api/v1/auth/register",Map.of("email",email,"password",PASSWORD,"displayName","Lease Account"),null,201)));
+        call("POST","/api/v1/auth/register",Map.of("email",email,"password",PASSWORD,"displayName","Lease Account"),null, 202);
+    UUID id = jdbc.queryForObject("SELECT id FROM app_users WHERE email=?", UUID.class, email);
         Account account=new Account(id,email); login(account); jdbc.update("UPDATE app_users SET email_verified_at=now() WHERE email=?", email);
         return account;
     }
