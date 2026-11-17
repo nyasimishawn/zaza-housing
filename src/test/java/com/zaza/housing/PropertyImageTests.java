@@ -233,6 +233,18 @@ class PropertyImageTests {
     }
 
     @Test
+    void archivedImagesCannotBeUsedToBypassRetainedPropertyCapacity() throws Exception {
+        Inventory inventory = inventory();
+        long before = fileCount();
+        for (int i = 0; i < 60; i++) {
+            jdbc.update("INSERT INTO property_images(id,property_id,created_by,storage_key,content_type,width,height,byte_size,status) VALUES (?,?,?,?,'image/png',1,1,1,'ARCHIVED')",
+                UUID.randomUUID(), UUID.fromString(inventory.property), inventory.owner.id, UUID.randomUUID() + ".png");
+        }
+        assertThat(upload(inventory.images(), picture("png", 30, 20), "image.png", "image/png", "", inventory.owner.token).statusCode()).isEqualTo(409);
+        assertThat(fileCount()).isEqualTo(before);
+    }
+
+    @Test
     void oldPublicationSnapshotsWithoutImagesStillDeserialize() throws Exception {
         Inventory inventory = inventory();
         publish(inventory, 0, List.of(), 200);
@@ -254,6 +266,7 @@ class PropertyImageTests {
         String email = UUID.randomUUID() + "@example.com";
         JsonNode user = node(call("POST", "/api/v1/auth/register", Map.of("email", email, "password", PASSWORD, "displayName", "Image test"), null, 201));
         JsonNode login = node(call("POST", "/api/v1/auth/login", Map.of("email", email, "password", PASSWORD), null, 200));
+        jdbc.update("UPDATE app_users SET email_verified_at=now() WHERE email=?", email);
         return new Account(UUID.fromString(user.get("id").asText()), email, login.get("accessToken").asText());
     }
     private String organization(Account actor, String type) throws Exception { return node(call("POST", "/api/v1/organizations", Map.of("name", "Image test org", "type", type), actor.token, 201)).get("id").asText(); }

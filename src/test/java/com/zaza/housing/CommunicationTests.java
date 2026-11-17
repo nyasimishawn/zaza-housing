@@ -1801,7 +1801,8 @@ class CommunicationTests {
                     201)));
     Account account = new Account(id, email);
     login(account);
-    return account;
+    jdbc.update("UPDATE app_users SET email_verified_at=now() WHERE email=?", email);
+        return account;
   }
 
   private void login(Account account) throws Exception {

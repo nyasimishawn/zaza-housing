@@ -225,6 +225,18 @@ class PropertyVideoTests {
     }
 
     @Test
+    void archivedVideosCannotBeUsedToBypassRetainedPropertyCapacity() throws Exception {
+        Inventory inventory = inventory();
+        long before = fileCount();
+        for (int i = 0; i < 10; i++) {
+            jdbc.update("INSERT INTO property_videos(id,property_id,created_by,storage_key,content_type,width,height,duration_seconds,byte_size,status) VALUES (?,?,?,?,'video/mp4',2,2,1,1,'ARCHIVED')",
+                UUID.randomUUID(), UUID.fromString(inventory.property), inventory.owner.id, UUID.randomUUID() + ".mp4");
+        }
+        assertThat(upload(inventory.videos(), shortClip(), "phone.mp4", "video/mp4", "", inventory.owner.token).statusCode()).isEqualTo(409);
+        assertThat(fileCount()).isEqualTo(before);
+    }
+
+    @Test
     void olderSnapshotsAndRequestsWithoutVideosRemainCompatible() throws Exception {
         Inventory inventory = inventory();
         call("POST", inventory.listingPath() + "/publish", Map.of("version", 0, "propertyVersion", 1, "unitVersion", 0), inventory.owner.token, 200);
@@ -342,6 +354,7 @@ class PropertyVideoTests {
         String email = UUID.randomUUID() + "@example.com";
         JsonNode user = node(call("POST", "/api/v1/auth/register", Map.of("email", email, "password", PASSWORD, "displayName", "Video test"), null, 201));
         JsonNode login = node(call("POST", "/api/v1/auth/login", Map.of("email", email, "password", PASSWORD), null, 200));
+        jdbc.update("UPDATE app_users SET email_verified_at=now() WHERE email=?", email);
         return new Account(UUID.fromString(user.get("id").asText()), email, login.get("accessToken").asText());
     }
     private String organization(Account actor, String type) throws Exception { return node(call("POST", "/api/v1/organizations", Map.of("name", "Video test org", "type", type), actor.token, 201)).get("id").asText(); }

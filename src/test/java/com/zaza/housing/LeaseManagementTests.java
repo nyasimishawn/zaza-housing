@@ -500,7 +500,8 @@ class LeaseManagementTests {
     private Account account() throws Exception {
         String email=UUID.randomUUID()+"@example.com";
         UUID id=id(node(call("POST","/api/v1/auth/register",Map.of("email",email,"password",PASSWORD,"displayName","Lease Account"),null,201)));
-        Account account=new Account(id,email); login(account); return account;
+        Account account=new Account(id,email); login(account); jdbc.update("UPDATE app_users SET email_verified_at=now() WHERE email=?", email);
+        return account;
     }
     private void login(Account account) throws Exception { account.token=node(call("POST","/api/v1/auth/login",Map.of("email",account.email,"password",PASSWORD),null,200)).get("accessToken").asText(); }
     private String organization(Account actor,String type) throws Exception { return node(call("POST","/api/v1/organizations",Map.of("name","Lease business","type",type),actor,201)).get("id").asText(); }

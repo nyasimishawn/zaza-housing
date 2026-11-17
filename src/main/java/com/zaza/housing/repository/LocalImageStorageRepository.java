@@ -22,6 +22,8 @@ public class LocalImageStorageRepository {
     }
 
     public String save(ProcessedImage image) throws IOException {
+        if (Files.getFileStore(directory).getUsableSpace() < image.bytes().length + 256L * 1024 * 1024)
+            throw new IOException("Image storage reserve reached");
         String key = UUID.randomUUID() + "." + image.extension();
         Path temporary = Files.createTempFile(directory, "image-", ".tmp");
         try {

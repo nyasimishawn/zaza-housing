@@ -1,0 +1,135 @@
+package com.zaza.housing;
+
+import static org.assertj.core.api.Assertions.*;
+import com.zaza.housing.dto.DiscoveryCommandRequest;
+import com.zaza.housing.exception.ApiException;
+import com.zaza.housing.repository.MediaQuotaRepository;
+import com.zaza.housing.service.MediaQuotaService;
+import java.net.URI;
+import java.net.http.*;
+import java.time.Duration;
+import java.util.*;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.*;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.ObjectMapper;
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("test")
+class SecurityRemediationTests {
+  static final String PASSWORD = "Security-remediation-password-42";
+  @Value("${local.server.port}") int port;
+  @Autowired ObjectMapper json;
+  @Autowired JdbcTemplate jdbc;
+  @Autowired MediaQuotaRepository repository;
+  @Autowired PlatformTransactionManager manager;
+  final HttpClient client = HttpClient.newHttpClient();
+
+  @Test
+  void managerCannotAddUnverifiedIdentityButCanProvisionVerifiedRecipient() throws Exception {
+    var owner = account(); var target = account();
+    var org = call("POST", "/api/v1/organizations", Map.of("name", "Verified members", "type", "LANDLORD"), owner.token);
+    String id = json.readTree(org.body()).get("id").asText();
+    String members = "/api/v1/organizations/" + id + "/members";
+    var body = Map.of("email", target.email, "role", "ADMIN");
+    var unverified = call("POST", members, body, owner.token);
+    assertThat(unverified.statusCode()).isEqualTo(404);
+    var absent = call("POST", members, Map.of("email", UUID.randomUUID() + "@example.test", "role", "ADMIN"), owner.token);
+    assertThat(absent.statusCode()).isEqualTo(unverified.statusCode());
+    assertThat(json.readTree(absent.body()).get("detail")).isEqualTo(json.readTree(unverified.body()).get("detail"));
+    assertThat(call("GET", "/api/v1/organizations/" + id, null, target.token).statusCode()).isEqualTo(404);
+    assertThat(jdbc.queryForObject("SELECT count(*) FROM organization_memberships WHERE organization_id=? AND user_id=?",
+        Integer.class, UUID.fromString(id), target.id)).isZero();
+    jdbc.update("UPDATE app_users SET email_verified_at=now() WHERE id=?", target.id);
+    assertThat(call("POST", members, body, owner.token).statusCode()).isEqualTo(201);
+    assertThat(call("GET", "/api/v1/organizations/" + id, null, target.token).statusCode()).isEqualTo(200);
+  }
+
+  @Test
+  void springMapperRejectsNumericStringsQuicklyAndRetainsDecimalMoneyCompatibility() throws Exception {
+    String malformed = "1".repeat(16000) + "x";
+    String input = "{\"query\":{\"latitude\":\"" + malformed + "\"}}";
+    org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(Duration.ofSeconds(2), () ->
+        assertThatThrownBy(() -> json.readValue(input, DiscoveryCommandRequest.class)).isInstanceOf(Exception.class));
+    var valid = json.readValue("{\"query\":{\"latitude\":-1.2,\"minRent\":\"25000.50\"}}", DiscoveryCommandRequest.class);
+    assertThat(valid.query().latitude()).isEqualTo(-1.2);
+    assertThat(valid.query().minRent()).isEqualByComparingTo("25000.50");
+    assertThatThrownBy(() -> json.readTree("{\"text\":\"" + "x".repeat(65537) + "\"}"))
+        .isInstanceOf(Exception.class);
+    var actor = account();
+    assertThat(call("POST", "/api/v1/me/discovery/searches",
+        Map.of("requestId", UUID.randomUUID(), "name", "Malformed", "query", Map.of("latitude", malformed)), actor.token)
+        .statusCode()).isEqualTo(400);
+  }
+
+  @Test
+  void localLoginThrottlePersistsAfterFailedTransactionsAndNormalizesEmail() throws Exception {
+    var actor = account(); // Already consumed one login attempt.
+    for (int i = 0; i < 19; i++) {
+      assertThat(call("POST", "/api/v1/auth/login", Map.of("email", actor.email.toUpperCase(),
+          "password", "Wrong-security-password-42"), null).statusCode()).isEqualTo(401);
+    }
+    assertThat(call("POST", "/api/v1/auth/login", Map.of("email", actor.email, "password", PASSWORD), null)
+        .statusCode()).isEqualTo(429);
+    assertThat(call("GET", "/api/v1/me", null, actor.token).statusCode()).isEqualTo(200);
+  }
+
+  @Test
+  void retainedQuotasCountArchivedImagesAndVideosAndSerializeConcurrentReservations() throws Exception {
+    var actor = account();
+    UUID org = UUID.randomUUID(), property = UUID.randomUUID();
+    jdbc.update("INSERT INTO organizations(id,name,type,created_by) VALUES (?, 'Quota fixture', 'LANDLORD', ?)", org, actor.id);
+    jdbc.update("INSERT INTO properties(id,owner_organization_id,name,type,country_code,city,address,created_by) VALUES (?,?,'Quota fixture','HOUSE','KE','Nairobi','Fixture',?)", property, org, actor.id);
+    jdbc.update("INSERT INTO property_images(id,property_id,created_by,storage_key,content_type,width,height,byte_size,status) VALUES (?,?,?,?,'image/png',1,1,60,'ARCHIVED')", UUID.randomUUID(), property, actor.id, UUID.randomUUID() + ".png");
+    jdbc.update("INSERT INTO property_videos(id,property_id,created_by,storage_key,content_type,width,height,duration_seconds,byte_size,status) VALUES (?,?,?,?,'video/mp4',2,2,1,40,'ARCHIVED')", UUID.randomUUID(), property, actor.id, UUID.randomUUID() + ".mp4");
+    var tx = new TransactionTemplate(manager);
+    var quota = new MediaQuotaService(repository, 100, 100);
+    assertThatThrownBy(() -> tx.executeWithoutResult(s -> quota.requireCapacity(actor.id, org, 1)))
+        .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.status().value()).isEqualTo(409));
+    var other = account();
+    assertThatThrownBy(() -> tx.executeWithoutResult(s -> quota.requireCapacity(other.id, org, 1)))
+        .isInstanceOf(ApiException.class); // The owner's quota applies to other uploaders too.
+    assertThat(repository.usage(actor.id, false).bytes()).isEqualTo(100);
+    var larger = new MediaQuotaService(repository, 150, 150);
+    var start = new java.util.concurrent.CountDownLatch(1);
+    try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+      java.util.concurrent.Callable<Integer> upload = () -> {
+        start.await();
+        try {
+          tx.executeWithoutResult(s -> {
+            larger.requireCapacity(actor.id, org, 40);
+            jdbc.update("INSERT INTO property_images(id,property_id,created_by,storage_key,content_type,width,height,byte_size) VALUES (?,?,?,?,'image/png',1,1,40)", UUID.randomUUID(), property, actor.id, UUID.randomUUID() + ".png");
+          });
+          return 201;
+        } catch (ApiException e) { return e.status().value(); }
+      };
+      var a = pool.submit(upload); var b = pool.submit(upload); start.countDown();
+      assertThat(List.of(a.get(10, java.util.concurrent.TimeUnit.SECONDS), b.get(10, java.util.concurrent.TimeUnit.SECONDS)))
+          .containsExactlyInAnyOrder(201, 409);
+    }
+    assertThat(repository.usage(actor.id, false).bytes()).isEqualTo(140);
+  }
+
+  Account account() throws Exception {
+    String email = UUID.randomUUID() + "@example.test";
+    var registered = call("POST", "/api/v1/auth/register", Map.of("email", email, "password", PASSWORD, "displayName", "Security fixture"), null);
+    assertThat(registered.statusCode()).isEqualTo(201);
+    UUID id = UUID.fromString(json.readTree(registered.body()).get("id").asText());
+    var login = call("POST", "/api/v1/auth/login", Map.of("email", email, "password", PASSWORD), null);
+    assertThat(login.statusCode()).isEqualTo(200);
+    return new Account(id, email, json.readTree(login.body()).get("accessToken").asText());
+  }
+
+  HttpResponse<String> call(String method, String path, Object body, String token) throws Exception {
+    var builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path)).timeout(Duration.ofSeconds(15));
+    if (token != null) builder.header("Authorization", "Bearer " + token);
+    if (body != null) builder.header("Content-Type", "application/json");
+    builder.method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body)));
+    return client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+  }
+  record Account(UUID id, String email, String token) {}
+}

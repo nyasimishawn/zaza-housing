@@ -107,6 +107,30 @@ class MapTileServiceTests {
   }
 
   @Test
+  void fullFreshCacheEvictsLeastRecentlyReadTileAndKeepsServingNewTiles() throws Exception {
+    png = java.util.Arrays.copyOf(png, 400000);
+    var s = service();
+    String r = revision(s);
+    s.tile(r, 2, 0, 0, null);
+    s.tile(r, 2, 0, 1, null);
+    s.tile(r, 2, 0, 0, null); // First tile is now the most recently used.
+    s.tile(r, 2, 0, 2, null);
+    assertThat(requests.get()).isEqualTo(3);
+    assertThat(s.tile(r, 2, 0, 0, null)).isEqualTo(png);
+    assertThat(requests.get()).isEqualTo(3);
+    assertThat(s.tile(r, 2, 0, 1, null)).isEqualTo(png);
+    assertThat(requests.get()).isEqualTo(4);
+    try (var stored = Files.walk(files)) {
+      assertThat(stored.filter(Files::isRegularFile).mapToLong(p -> {
+        try { return Files.size(p); } catch (Exception error) { throw new RuntimeException(error); }
+      }).sum()).isLessThanOrEqualTo(1024 * 1024);
+    }
+    // A restarted service indexes its existing bounded cache successfully.
+    assertThat(service().tile(r, 2, 0, 1, null)).isEqualTo(png);
+    assertThat(requests.get()).isEqualTo(4);
+  }
+
+  @Test
   void insecureRemoteTemplatesAreRejected() {
     assertThatThrownBy(
             () ->

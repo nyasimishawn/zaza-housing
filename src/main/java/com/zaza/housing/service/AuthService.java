@@ -32,6 +32,8 @@ public class AuthService {
   private final SecureRandom random = new SecureRandom();
   private final String dummyHash;
   private final KeycloakAuthService keycloak;
+  private final SecurityAttemptService attempts;
+  private final org.springframework.transaction.support.TransactionTemplate transactions;
   private final org.springframework.beans.factory.ObjectProvider<AccountSecurityService> security;
   private final com.zaza.housing.repository.AccountSecurityRepository accountSecurity;
 
@@ -43,7 +45,8 @@ public class AuthService {
       @Value("${zaza.auth.session-duration}") Duration sessionDuration,
       org.springframework.beans.factory.ObjectProvider<AccountSecurityService> security,
       com.zaza.housing.repository.AccountSecurityRepository accountSecurity,
-      KeycloakAuthService keycloak) {
+      KeycloakAuthService keycloak, SecurityAttemptService attempts,
+      org.springframework.transaction.PlatformTransactionManager manager) {
     if (sessionDuration.isNegative()
         || sessionDuration.isZero()
         || sessionDuration.compareTo(Duration.ofDays(1)) > 0) {
@@ -52,6 +55,8 @@ public class AuthService {
     }
     this.users = users;
     this.keycloak = keycloak;
+    this.attempts = attempts;
+    this.transactions = new org.springframework.transaction.support.TransactionTemplate(manager);
     this.security = security;
     this.accountSecurity = accountSecurity;
     this.encoder = encoder;
@@ -72,32 +77,36 @@ public class AuthService {
     return user;
   }
 
-  @Transactional
   public LoginResponse login(String email, String password) {
     return login(email, password, null, null);
   }
 
-  @Transactional
   public LoginResponse login(String email, String password, String code, String recoveryCode) {
     if (keycloak.enabled()) return keycloak.login(email, password, code, recoveryCode);
     validatePassword(password);
-    var candidate = users.credentialsForLogin(EmailNormalizer.normalize(email));
-    boolean matches =
-        encoder.matches(password, candidate.map(UserCredentials::passwordHash).orElse(dummyHash));
-    if (candidate.isEmpty() || !matches || !candidate.get().active()) {
-      throw new ApiException(HttpStatus.UNAUTHORIZED, "Email or password is incorrect.");
-    }
-    boolean mfa = security.getObject().verifyLogin(candidate.get().user().id(), code, recoveryCode);
-    byte[] bytes = new byte[32];
-    random.nextBytes(bytes);
-    String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    Instant now = clock.instant();
-    Instant expires = now.plus(sessionDuration);
-    UserAccount user = candidate.get().user();
-    users.saveSession(TokenUtils.hashToken(token), user.id(), now, expires);
-    if (mfa) accountSecurity.verified(user.id(), TokenUtils.hashToken(token), now);
-    audit.record(user.id(), null, "USER_LOGGED_IN", user.id());
-    return new LoginResponse(token, "Bearer", expires, user);
+    String normalized = EmailNormalizer.normalize(email);
+    attempts.require(normalized, "LOGIN", 20);
+    // Commit the attempt before acquiring the login transaction's connection. A
+    // REQUIRES_NEW counter inside that transaction can exhaust a small pool.
+    return transactions.execute(status -> {
+      var candidate = users.credentialsForLogin(normalized);
+      boolean matches =
+          encoder.matches(password, candidate.map(UserCredentials::passwordHash).orElse(dummyHash));
+      if (candidate.isEmpty() || !matches || !candidate.get().active()) {
+        throw new ApiException(HttpStatus.UNAUTHORIZED, "Email or password is incorrect.");
+      }
+      boolean mfa = security.getObject().verifyLogin(candidate.get().user().id(), code, recoveryCode);
+      byte[] bytes = new byte[32];
+      random.nextBytes(bytes);
+      String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+      Instant now = clock.instant();
+      Instant expires = now.plus(sessionDuration);
+      UserAccount user = candidate.get().user();
+      users.saveSession(TokenUtils.hashToken(token), user.id(), now, expires);
+      if (mfa) accountSecurity.verified(user.id(), TokenUtils.hashToken(token), now);
+      audit.record(user.id(), null, "USER_LOGGED_IN", user.id());
+      return new LoginResponse(token, "Bearer", expires, user);
+    });
   }
 
   @Transactional

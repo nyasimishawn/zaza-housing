@@ -180,6 +180,7 @@ class HousingApplicationTests {
                 "password", PASSWORD, "displayName", "Foundation test"), null);
         assertThat(response.statusCode()).isEqualTo(201);
         UUID id = UUID.fromString(json.readTree(response.body()).get("id").asText());
+        jdbc.update("UPDATE app_users SET email_verified_at=now() WHERE email=?", email);
         return new Account(id, email, login(email));
     }
 

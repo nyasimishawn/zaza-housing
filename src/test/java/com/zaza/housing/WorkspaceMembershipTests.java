@@ -92,6 +92,7 @@ class WorkspaceMembershipTests {
         UUID id = UUID.fromString(json.readTree(response.body()).get("id").asText());
         var login = call("POST", "/api/v1/auth/login", Map.of("email", email, "password", PASSWORD), null);
         assertThat(login.statusCode()).isEqualTo(200);
+        jdbc.update("UPDATE app_users SET email_verified_at=now() WHERE email=?", email);
         return new Account(id, email, json.readTree(login.body()).get("accessToken").asText());
     }
     private String organization(Account owner, String type) throws Exception {

@@ -569,7 +569,8 @@ class CaretakerOperationsTests {
                 Map.of("email", email, "password", PASSWORD),
                 null,
                 200));
-    return new Account(
+    jdbc.update("UPDATE app_users SET email_verified_at=now() WHERE email=?", email);
+        return new Account(
         UUID.fromString(registered.get("id").asText()),
         email,
         loggedIn.get("accessToken").asText());

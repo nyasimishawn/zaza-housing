@@ -25,6 +25,12 @@ spring:
 server:
   address: ${ZAZA_BIND_ADDRESS:127.0.0.1}
   port: ${ZAZA_PORT:8080}
+  # Forwarding headers are ignored unless native processing is explicitly enabled.
+  # Configure only the exact trusted ingress addresses; never trust arbitrary clients.
+  forward-headers-strategy: ${ZAZA_FORWARD_HEADERS_STRATEGY:none}
+  tomcat:
+    remoteip:
+      internal-proxies: '${ZAZA_TRUSTED_PROXY_REGEX:127\.0\.0\.1|::1|0:0:0:0:0:0:0:1}'
   error:
     include-message: never
     include-stacktrace: never

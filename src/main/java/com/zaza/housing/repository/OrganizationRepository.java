@@ -69,6 +69,11 @@ public class OrganizationRepository {
         return jdbc.query("SELECT id FROM app_users WHERE email = ? AND active", (rs, row) -> rs.getObject("id", UUID.class), email).stream().findFirst();
     }
 
+    public Optional<UUID> verifiedActiveUserByEmail(String email) {
+        return jdbc.query("SELECT id FROM app_users WHERE email = ? AND active AND email_verified_at IS NOT NULL",
+                (rs, row) -> rs.getObject("id", UUID.class), email).stream().findFirst();
+    }
+
     public void addMember(UUID organization, UUID user, MembershipRole role) {
         jdbc.update("INSERT INTO organization_memberships(organization_id, user_id, role) VALUES (?, ?, ?)", organization, user, role.name());
     }

@@ -53,6 +53,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
                             "/api/v1/organizations/[^/]+/caretaker/assignments(/[^/]+/(accept|decline|revoke))?")
                     || request.getServletPath().startsWith("/api/v1/admin/conversation-reports/")
                     || request.getServletPath().startsWith("/api/v1/admin/service-finance/")
+                    || request.getServletPath().matches("/api/v1/organizations/[^/]+/(members|team-invitations)")
                     || "/api/v1/auth/login".equals(request.getServletPath())
                     || "/api/v1/auth/register".equals(request.getServletPath())
                     || request

@@ -435,6 +435,7 @@ class RentalApplicationTests {
         String email = UUID.randomUUID() + "@example.com";
         JsonNode user = node(call("POST", "/api/v1/auth/register", Map.of("email", email, "password", PASSWORD, "displayName", "Application test"), null, 201));
         JsonNode login = node(call("POST", "/api/v1/auth/login", Map.of("email", email, "password", PASSWORD), null, 200));
+        jdbc.update("UPDATE app_users SET email_verified_at=now() WHERE email=?", email);
         return new Account(UUID.fromString(user.get("id").asText()), email, login.get("accessToken").asText());
     }
     private URI uri(String path) { return URI.create("http://127.0.0.1:" + port + path); }

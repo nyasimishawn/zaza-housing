@@ -64,8 +64,8 @@ public class OrganizationService {
         MembershipRole actorRole = get(actor, id).role();
         requireManager(actorRole);
         checkRoleChange(actorRole, null, role);
-        UUID user = organizations.activeUserByEmail(EmailNormalizer.normalize(email)).orElseThrow(() ->
-                new ApiException(HttpStatus.NOT_FOUND, "Registered account not found."));
+        UUID user = organizations.verifiedActiveUserByEmail(EmailNormalizer.normalize(email)).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "Eligible account not found. Ask the recipient to verify their email or use a team invitation."));
         organizations.addMember(id, user, role);
         audit.recordChange(actor.id(), id, "MEMBER_ADDED", user, null, role.name());
         return organizations.member(id, user).orElseThrow();

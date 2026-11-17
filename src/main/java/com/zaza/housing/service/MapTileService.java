@@ -30,6 +30,9 @@ public class MapTileService {
   private final Semaphore connections = new Semaphore(4);
   private final Object[] locks = new Object[64];
   private final Object quota = new Object();
+  private final LinkedHashMap<Path, CachedTile> cached = new LinkedHashMap<>(16, .75f, true);
+  private long used;
+  private boolean indexed;
 
   public MapTileService(
       Clock clock,
@@ -93,13 +96,20 @@ public class MapTileService {
     if (!file.startsWith(directory)) throw unavailable();
     synchronized (locks[Math.floorMod(Objects.hash(z, x, y), locks.length)]) {
       try {
-        if (Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)
-            && Files.size(file) <= 1024 * 1024
-            && Files.getLastModifiedTime(file)
-                .toInstant()
-                .plusSeconds(TTL)
-                .isAfter(clock.instant())) return Files.readAllBytes(file);
-        if (!connections.tryAcquire(10, TimeUnit.SECONDS)) throw unavailable();
+        synchronized (quota) {
+          indexCache();
+          CachedTile entry = cached.get(file);
+          if (entry != null) {
+            if (entry.fetched().plusSeconds(TTL).isAfter(clock.instant())
+                && Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+              try { return Files.readAllBytes(file); }
+              catch (IOException ignored) { /* Refetch an externally removed cache file. */ }
+            }
+            removeCached(file);
+          }
+        }
+        // Bound active fetches without retaining a queue of waiting request threads.
+        if (!connections.tryAcquire()) throw unavailable();
         byte[] bytes;
         try {
           var request =
@@ -136,36 +146,10 @@ public class MapTileService {
           connections.release();
         }
         synchronized (quota) {
-          Files.createDirectories(directory);
-          long used;
-          try (var files = Files.walk(directory)) {
-            used =
-                files
-                    .filter(p -> Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS))
-                    .mapToLong(
-                        p -> {
-                          try {
-                            return Files.size(p);
-                          } catch (IOException e) {
-                            return maximum;
-                          }
-                        })
-                    .sum();
-          }
-          if (used + bytes.length > maximum) {
-            try (var files = Files.walk(directory)) {
-              for (Path old :
-                  files.filter(p -> Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS)).toList())
-                if (Files.getLastModifiedTime(old)
-                    .toInstant()
-                    .plusSeconds(TTL)
-                    .isBefore(clock.instant())) {
-                  used -= Files.size(old);
-                  Files.deleteIfExists(old);
-                }
-            }
-          }
-          if (used + bytes.length > maximum) throw unavailable();
+          // Evict the least recently read tile even when all entries are still fresh.
+          // Also cap entry count so tiny PNGs cannot create an unbounded metadata index.
+          while (!cached.isEmpty() && (used + bytes.length > maximum || cached.size() >= 20000))
+            removeCached(cached.keySet().iterator().next());
           Files.createDirectories(file.getParent());
           Path temporary = Files.createTempFile(file.getParent(), "tile-", ".tmp");
           try {
@@ -176,6 +160,8 @@ public class MapTileService {
                 StandardCopyOption.REPLACE_EXISTING,
                 StandardCopyOption.ATOMIC_MOVE);
             Files.setLastModifiedTime(file, FileTime.from(clock.instant()));
+            cached.put(file, new CachedTile(bytes.length, clock.instant()));
+            used += bytes.length;
           } finally {
             Files.deleteIfExists(temporary);
           }
@@ -189,6 +175,40 @@ public class MapTileService {
       }
     }
   }
+
+  private void indexCache() throws IOException {
+    if (indexed) return;
+    Files.createDirectories(directory);
+    try (var files = Files.walk(directory)) {
+      for (Path file : files.filter(p -> Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS)).toList()) {
+        long size = Files.size(file);
+        Instant fetched = Files.getLastModifiedTime(file).toInstant();
+        if (!file.getFileName().toString().endsWith(".png") || size > 1024 * 1024
+            || !fetched.plusSeconds(TTL).isAfter(clock.instant())) {
+          Files.deleteIfExists(file);
+          continue;
+        }
+        cached.put(file, new CachedTile(size, fetched));
+        used += size;
+      }
+    }
+    while (!cached.isEmpty() && (used > maximum || cached.size() > 20000))
+      removeCached(cached.keySet().iterator().next());
+    indexed = true;
+  }
+
+  private void removeCached(Path file) throws IOException {
+    Files.deleteIfExists(file);
+    CachedTile entry = cached.remove(file);
+    if (entry != null) used -= entry.bytes();
+    // Remove empty coordinate directories so cache churn cannot grow inode usage forever.
+    for (Path parent = file.getParent(); !parent.equals(directory); parent = parent.getParent()) {
+      try { Files.deleteIfExists(parent); }
+      catch (DirectoryNotEmptyException ignored) { break; }
+    }
+  }
+
+  private record CachedTile(long bytes, Instant fetched) {}
 
   private ApiException unavailable() {
     return new ApiException(

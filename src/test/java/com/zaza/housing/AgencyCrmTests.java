@@ -87,6 +87,7 @@ class AgencyCrmTests {
         String email = UUID.randomUUID() + "@example.com";
         JsonNode registered = node(success("POST", "/api/v1/auth/register", Map.of("email", email, "password", PASSWORD, "displayName", "Property test"), null, 201));
         JsonNode loggedIn = node(success("POST", "/api/v1/auth/login", Map.of("email", email, "password", PASSWORD), null, 200));
+        jdbc.update("UPDATE app_users SET email_verified_at=now() WHERE email=?", email);
         return new Account(UUID.fromString(registered.get("id").asText()), email, loggedIn.get("accessToken").asText());
     }
 
