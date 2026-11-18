@@ -8,6 +8,7 @@ import com.zaza.housing.model.UserAccount;
 import com.zaza.housing.model.UserCredentials;
 import com.zaza.housing.repository.AuthRepository;
 import com.zaza.housing.util.EmailNormalizer;
+import com.zaza.housing.util.NetworkPeer;
 import com.zaza.housing.util.Pagination;
 import com.zaza.housing.util.TokenUtils;
 import java.nio.charset.StandardCharsets;
@@ -94,22 +95,23 @@ public class AuthService {
   }
 
   public LoginResponse login(String email, String password) {
-    return login(email, password, null, null);
+    return login(email, password, null, null, "127.0.0.1");
   }
 
-  public LoginResponse login(String email, String password, String code, String recoveryCode) {
+  public LoginResponse login(
+      String email, String password, String code, String recoveryCode, String peer) {
     if (keycloak.enabled()) return keycloak.login(email, password, code, recoveryCode);
     validatePassword(password);
     String normalized = EmailNormalizer.normalize(email);
-    attempts.require(normalized, "LOGIN", 20);
-    // Commit the attempt before acquiring the login transaction's connection. A
-    // REQUIRES_NEW counter inside that transaction can exhaust a small pool.
-    return transactions.execute(status -> {
+    String subject = NetworkPeer.bucket(peer) + "\n" + normalized;
+    LoginResponse response = transactions.execute(status -> {
+      long window = attempts.checkLoginFailures(subject);
       var candidate = users.credentialsForLogin(normalized);
       boolean matches =
           encoder.matches(password, candidate.map(UserCredentials::passwordHash).orElse(dummyHash));
       if (candidate.isEmpty() || !matches || !candidate.get().active()) {
-        throw new ApiException(ApiErrorCode.INVALID_CREDENTIALS, "Email or password is incorrect.");
+        attempts.recordLoginFailure(subject, window);
+        return null;
       }
       boolean mfa = security.getObject().verifyLogin(candidate.get().user().id(), code, recoveryCode);
       byte[] bytes = new byte[32];
@@ -123,6 +125,11 @@ public class AuthService {
       audit.record(user.id(), null, "USER_LOGGED_IN", user.id());
       return new LoginResponse(token, "Bearer", expires, user);
     });
+    // Return the HTTP error after the failure counter commits on the same connection.
+    if (response == null) {
+      throw new ApiException(ApiErrorCode.INVALID_CREDENTIALS, "Email or password is incorrect.");
+    }
+    return response;
   }
 
   @Transactional

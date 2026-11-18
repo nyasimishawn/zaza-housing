@@ -236,6 +236,18 @@ public class AccountSecurityRepository {
         Timestamp.from(now));
   }
 
+  public void lockAttempts(String subject, String purpose) {
+    jdbc.query("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
+        (rs, row) -> 0, "security-attempt:" + purpose + ":" + subject);
+  }
+
+  public int attemptCount(String subject, String purpose, long window) {
+    return jdbc.queryForObject(
+        "SELECT COALESCE((SELECT attempts FROM security_attempt_windows"
+            + " WHERE subject=? AND purpose=? AND window_start=?), 0)",
+        Integer.class, subject, purpose, window);
+  }
+
   public int attempt(String subject, String purpose, long window) {
     jdbc.update("DELETE FROM security_attempt_windows WHERE window_start<?", window - 6);
     return jdbc.queryForObject(

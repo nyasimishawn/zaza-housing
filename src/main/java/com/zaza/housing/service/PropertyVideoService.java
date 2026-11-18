@@ -57,8 +57,11 @@ public class PropertyVideoService {
         if (caption == null || caption.length() > 200) throw new ApiException(HttpStatus.BAD_REQUEST, "Video caption must contain at most 200 characters.");
         // Encoding runs without a database transaction or property locks.
         transactions.executeWithoutResult(status -> {
-            requireOpen(properties.lockForManagement(actor, organization, propertyId));
+            Property property = properties.lockForManagement(actor, organization, propertyId);
+            requireOpen(property);
             checkUploadCapacity(propertyId);
+            // A positive output needs room for at least one byte. Check the actual encoded size at commit.
+            quotas.requireCapacity(actor.id(), property.ownerOrganizationId(), 1);
         });
         final Path workspace;
         try { workspace = storage.createWorkspace(); }
@@ -174,11 +177,12 @@ public class PropertyVideoService {
     }
     private void checkUploadCapacity(UUID propertyId) {
         checkCapacity(propertyId);
-        if (videos.retainedCount(propertyId) >= 10)
+        if (videos.retainedCount(propertyId) >= MediaQuotaService.RETAINED_VIDEOS)
             throw new ApiException(HttpStatus.CONFLICT, "The property retained-videos limit has been reached. Archived media counts toward this limit.");
     }
     private void checkCapacity(UUID propertyId) {
-        if (videos.activeCount(propertyId) >= 5) throw new ApiException(HttpStatus.CONFLICT, "A property can have at most 5 active videos.");
+        if (videos.activeCount(propertyId) >= MediaQuotaService.ACTIVE_VIDEOS)
+            throw new ApiException(HttpStatus.CONFLICT, "A property can have at most 5 active videos.");
     }
     private static void requireOpen(Property property) {
         if (property.status() == PropertyStatus.ARCHIVED) throw new ApiException(HttpStatus.CONFLICT, "Restore the property before editing videos.");

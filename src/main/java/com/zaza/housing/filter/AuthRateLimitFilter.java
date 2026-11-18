@@ -1,13 +1,14 @@
 package com.zaza.housing.filter;
 
 import com.zaza.housing.security.SecurityErrors;
+import com.zaza.housing.util.BoundedRateLimiter;
+import com.zaza.housing.util.NetworkPeer;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.Clock;
-import com.zaza.housing.util.BoundedRateLimiter;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 public class AuthRateLimitFilter extends OncePerRequestFilter {
@@ -60,7 +61,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
                         .getServletPath()
                         .matches(
                             "/api/v1/organizations/[^/]+/properties/[^/]+/leases/[^/]+/billing/(payments|payments/[^/]+/(void|refunds)|claims/[^/]+/(verify|reject)|deposit/refunds)"));
-    if (protectedEndpoint && !requests.allow(request.getRemoteAddr())) {
+    if (protectedEndpoint && !requests.allow(NetworkPeer.bucket(request.getRemoteAddr()))) {
       response.setHeader("Retry-After", "60");
       SecurityErrors.write(response, 429);
       return;

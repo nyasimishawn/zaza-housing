@@ -8,6 +8,8 @@ import com.zaza.housing.service.MapTileService;
 import java.net.*;
 import java.nio.file.*;
 import java.time.*;
+import java.util.ArrayList;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
@@ -17,6 +19,10 @@ class MapTileServiceTests {
   HttpServer server;
   AtomicInteger requests;
   AtomicReference<String> agent, referer;
+  ExecutorService provider;
+  final AtomicInteger active = new AtomicInteger();
+  final AtomicInteger peak = new AtomicInteger();
+  volatile long providerDelayMillis;
   byte[] png;
   int status = 200;
 
@@ -30,15 +36,26 @@ class MapTileServiceTests {
             .decode(
                 "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXioAAAAASUVORK5CYII=");
     server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    provider = Executors.newCachedThreadPool();
+    server.setExecutor(provider);
     server.createContext(
         "/",
         e -> {
           requests.incrementAndGet();
           agent.set(e.getRequestHeaders().getFirst("User-Agent"));
           referer.set(e.getRequestHeaders().getFirst("Referer"));
-          e.sendResponseHeaders(status, png.length);
-          try (var body = e.getResponseBody()) {
-            body.write(png);
+          peak.accumulateAndGet(active.incrementAndGet(), Math::max);
+          try {
+            Thread.sleep(providerDelayMillis);
+            e.sendResponseHeaders(status, png.length);
+            try (var body = e.getResponseBody()) {
+              body.write(png);
+            }
+          } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+          } finally {
+            active.decrementAndGet();
+            e.close();
           }
         });
     server.start();
@@ -47,6 +64,7 @@ class MapTileServiceTests {
   @AfterEach
   void stop() {
     server.stop(0);
+    provider.shutdownNow();
   }
 
   MapTileService service() {
@@ -75,6 +93,36 @@ class MapTileServiceTests {
     assertThat(requests.get()).isEqualTo(1);
     assertThat(agent.get()).startsWith("Zaza/");
     assertThat(referer.get()).isEqualTo("https://zaza.example/");
+  }
+
+  @Test
+  void coldViewportWaitsBrieflyWhileKeepingUpstreamConcurrencyBounded() throws Exception {
+    providerDelayMillis = 150;
+    var service = service();
+    String revision = revision(service);
+    var ready = new CountDownLatch(10);
+    var start = new CountDownLatch(1);
+    try (var workers = Executors.newFixedThreadPool(10)) {
+      var results = new ArrayList<Future<byte[]>>();
+      for (int x = 0; x < 10; x++) {
+        int column = x;
+        results.add(workers.submit(() -> {
+          ready.countDown();
+          start.await();
+          return service.tile(revision, 4, column, 0, null);
+        }));
+      }
+      try {
+        assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+      } finally {
+        start.countDown();
+      }
+      for (var result : results) {
+        assertThat(result.get(5, TimeUnit.SECONDS)).isEqualTo(png);
+      }
+    }
+    assertThat(requests.get()).isEqualTo(10);
+    assertThat(peak.get()).isBetween(2, 4);
   }
 
   @Test

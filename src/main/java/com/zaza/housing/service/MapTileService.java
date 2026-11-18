@@ -27,12 +27,14 @@ public class MapTileService {
           .connectTimeout(Duration.ofSeconds(5))
           .followRedirects(HttpClient.Redirect.NEVER)
           .build();
-  private final Semaphore connections = new Semaphore(4);
+  private final Semaphore connections = new Semaphore(4, true);
+  private final Semaphore waiting = new Semaphore(16);
   private final Object[] locks = new Object[64];
   private final Object quota = new Object();
+  private final Object indexing = new Object();
   private final LinkedHashMap<Path, CachedTile> cached = new LinkedHashMap<>(16, .75f, true);
   private long used;
-  private boolean indexed;
+  private volatile boolean indexed;
 
   public MapTileService(
       Clock clock,
@@ -96,20 +98,25 @@ public class MapTileService {
     if (!file.startsWith(directory)) throw unavailable();
     synchronized (locks[Math.floorMod(Objects.hash(z, x, y), locks.length)]) {
       try {
+        ensureCacheIndexed();
+        CachedTile entry;
         synchronized (quota) {
-          indexCache();
-          CachedTile entry = cached.get(file);
-          if (entry != null) {
-            if (entry.fetched().plusSeconds(TTL).isAfter(clock.instant())
-                && Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
-              try { return Files.readAllBytes(file); }
-              catch (IOException ignored) { /* Refetch an externally removed cache file. */ }
+          entry = cached.get(file);
+        }
+        if (entry != null) {
+          if (entry.fetched().plusSeconds(TTL).isAfter(clock.instant())
+              && Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+            try {
+              return Files.readAllBytes(file);
+            } catch (NoSuchFileException ignored) {
+              // A different tile can evict this entry while the file is being opened.
             }
+          }
+          synchronized (quota) {
             removeCached(file);
           }
         }
-        // Bound active fetches without retaining a queue of waiting request threads.
-        if (!connections.tryAcquire()) throw unavailable();
+        acquireConnection();
         byte[] bytes;
         try {
           var request =
@@ -176,8 +183,29 @@ public class MapTileService {
     }
   }
 
-  private void indexCache() throws IOException {
+  private void acquireConnection() throws InterruptedException {
+    if (connections.tryAcquire(0, TimeUnit.SECONDS)) return;
+    if (!waiting.tryAcquire()) throw unavailable();
+    try {
+      if (!connections.tryAcquire(2, TimeUnit.SECONDS)) throw unavailable();
+    } finally {
+      waiting.release();
+    }
+  }
+
+  private void ensureCacheIndexed() throws IOException {
     if (indexed) return;
+    synchronized (indexing) {
+      if (indexed) return;
+      // Start from disk again if a previous indexing attempt failed.
+      cached.clear();
+      used = 0;
+      indexCache();
+      indexed = true;
+    }
+  }
+
+  private void indexCache() throws IOException {
     Files.createDirectories(directory);
     try (var files = Files.walk(directory)) {
       for (Path file : files.filter(p -> Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS)).toList()) {
@@ -194,7 +222,6 @@ public class MapTileService {
     }
     while (!cached.isEmpty() && (used > maximum || cached.size() > 20000))
       removeCached(cached.keySet().iterator().next());
-    indexed = true;
   }
 
   private void removeCached(Path file) throws IOException {

@@ -1,13 +1,14 @@
 package com.zaza.housing.filter;
 
 import com.zaza.housing.security.SecurityErrors;
+import com.zaza.housing.util.BoundedRateLimiter;
+import com.zaza.housing.util.NetworkPeer;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.Clock;
-import com.zaza.housing.util.BoundedRateLimiter;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 public class MapTileRateLimitFilter extends OncePerRequestFilter {
@@ -23,7 +24,7 @@ public class MapTileRateLimitFilter extends OncePerRequestFilter {
       throws ServletException, IOException {
     if ("GET".equals(request.getMethod())
         && request.getServletPath().startsWith("/api/v1/discovery/tiles/")) {
-      if (!requests.allow(request.getRemoteAddr())) {
+      if (!requests.allow(NetworkPeer.bucket(request.getRemoteAddr()))) {
         response.setHeader("Retry-After", "60");
         SecurityErrors.write(response, 429);
         return;

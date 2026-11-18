@@ -1,5 +1,7 @@
 package com.zaza.housing.service;
 
+import com.zaza.housing.dto.PropertyMediaQuotaResponse;
+
 import com.zaza.housing.enums.ApiErrorCode;
 import com.zaza.housing.dto.ChangePropertyManagementRequest;
 import com.zaza.housing.dto.ChangePropertyStatusRequest;
@@ -46,13 +48,15 @@ public class PropertyService {
     private final LeaseRepository leases;
     private final com.zaza.housing.repository.AgencyRepository agency;
     private final com.zaza.housing.repository.CaretakerRepository caretakers;
+    private final MediaQuotaService mediaQuotas;
 
     public PropertyService(PropertyRepository properties, OrganizationRepository memberships,
-            OrganizationService organizations, AuditService audit, RentalApplicationRepository applications, LeaseRepository leases, com.zaza.housing.repository.AgencyRepository agency,com.zaza.housing.repository.CaretakerRepository caretakers) {
+            OrganizationService organizations, AuditService audit, RentalApplicationRepository applications, LeaseRepository leases, com.zaza.housing.repository.AgencyRepository agency,com.zaza.housing.repository.CaretakerRepository caretakers, MediaQuotaService mediaQuotas) {
         this.properties = properties;
         this.memberships = memberships;
         this.organizations = organizations;
         this.audit = audit; this.applications = applications; this.leases=leases;this.agency=agency;this.caretakers=caretakers;
+        this.mediaQuotas = mediaQuotas;
     }
 
     @Transactional
@@ -92,6 +96,14 @@ public class PropertyService {
     public Property getForManagement(AuthenticatedUser actor, UUID organizationId, UUID id) {
         requireManager(organizations.get(actor, organizationId));
         return access(actor, organizationId, id, false);
+    }
+
+    @Transactional(readOnly = true)
+    public PropertyMediaQuotaResponse mediaQuota(
+            AuthenticatedUser actor, UUID organizationId, UUID id) {
+        Property property = getForManagement(actor, organizationId, id);
+        UUID owner = property.ownerOrganizationId();
+        return mediaQuotas.summary(actor.id(), id, owner, owner.equals(organizationId));
     }
 
     @Transactional(propagation = Propagation.MANDATORY)

@@ -148,11 +148,12 @@ public class PropertyImageService {
     }
     private void checkUploadCapacity(UUID propertyId) {
         checkCapacity(propertyId);
-        if (images.retainedCount(propertyId) >= 60)
+        if (images.retainedCount(propertyId) >= MediaQuotaService.RETAINED_IMAGES)
             throw new ApiException(HttpStatus.CONFLICT, "The property retained-images limit has been reached. Archived media counts toward this limit.");
     }
     private void checkCapacity(UUID propertyId) {
-        if (images.activeCount(propertyId) >= 30) throw new ApiException(HttpStatus.CONFLICT, "A property can have at most 30 active images.");
+        if (images.activeCount(propertyId) >= MediaQuotaService.ACTIVE_IMAGES)
+            throw new ApiException(HttpStatus.CONFLICT, "A property can have at most 30 active images.");
     }
     private static void requireOpen(Property property) {
         if (property.status() == PropertyStatus.ARCHIVED) throw new ApiException(HttpStatus.CONFLICT, "Restore the property before editing images.");

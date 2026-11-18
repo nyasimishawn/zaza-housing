@@ -25,4 +25,13 @@ class MapTileRateLimitFilterTests {
     filter.doFilter(req, response, (r, s) -> ((jakarta.servlet.http.HttpServletResponse)s).setStatus(204));
     return response.getStatus();
   }
+
+  @Test
+  void ipv6AddressesWithinOnePrefixShareTheTileLimit() throws Exception {
+    var filter = new MapTileRateLimitFilter(Clock.systemUTC(), 1);
+    String path = "/api/v1/discovery/tiles/r/2/1/1.png";
+    assertThat(request(filter, "2001:db8:1:2::1", path)).isEqualTo(204);
+    assertThat(request(filter, "2001:0db8:1:2:3:4:5:6", path)).isEqualTo(429);
+    assertThat(request(filter, "2001:db8:1:3::1", path)).isEqualTo(204);
+  }
 }

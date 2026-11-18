@@ -9,6 +9,7 @@ import com.zaza.housing.service.KeycloakAuthService;
 import com.zaza.housing.model.AuthenticatedUser;
 import com.zaza.housing.model.UserAccount;
 import com.zaza.housing.service.AuthService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -40,8 +41,9 @@ public class AuthController {
   }
 
   @PostMapping("/auth/login")
-  public LoginResponse login(@Valid @RequestBody LoginRequest request) {
-    return auth.login(request.email(), request.password(), request.code(), request.recoveryCode());
+  public LoginResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest http) {
+    return auth.login(
+        request.email(), request.password(), request.code(), request.recoveryCode(), http.getRemoteAddr());
   }
 
   @PostMapping("/auth/logout")

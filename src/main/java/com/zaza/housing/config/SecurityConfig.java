@@ -46,7 +46,7 @@ public class SecurityConfig {
       org.springframework.beans.factory.ObjectProvider<org.springframework.security.oauth2.jwt.JwtDecoder> decoder,
       @Qualifier("corsConfiguration") CorsConfigurationSource corsConfiguration,
       @Value("${zaza.auth.requests-per-minute}") int authLimit,
-      @Value("${zaza.discovery.tile-requests-per-minute:240}") int tileLimit)
+      @Value("${zaza.discovery.tile-requests-per-minute:600}") int tileLimit)
       throws Exception {
     return http.csrf(AbstractHttpConfigurer::disable)
         .cors(cors -> cors.configurationSource(corsConfiguration))

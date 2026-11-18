@@ -1,6 +1,7 @@
 package com.zaza.housing;
 
 import static org.assertj.core.api.Assertions.*;
+import com.zaza.housing.exception.ApiException;
 import com.zaza.housing.service.AuthService;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,8 @@ class LoginConnectionPoolTests {
     try (var occupied = dataSource.getConnection()) {
       var response = auth.login(email, password);
       assertThat(response.user().email()).isEqualTo(email);
+      assertThatThrownBy(() -> auth.login(email, "Wrong-single-connection-password"))
+          .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.status().value()).isEqualTo(401));
     }
   }
 }
