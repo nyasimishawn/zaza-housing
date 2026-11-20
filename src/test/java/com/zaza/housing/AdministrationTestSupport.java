@@ -89,13 +89,12 @@ abstract class AdministrationTestSupport {
             "POST",
             "/api/v1/auth/register",
             Map.of("email", email, "password", PASSWORD, "displayName", "Operations test"),
-            null,
-            201);
+            null, 202);
     String token =
         ok("POST", "/api/v1/auth/login", Map.of("email", email, "password", PASSWORD), null, 200)
             .get("accessToken")
             .asText();
-    UUID id = UUID.fromString(u.get("id").asText());
+    UUID id = jdbc.queryForObject("SELECT id FROM app_users WHERE email=?", UUID.class, email);
     if (!operator) return new Account(id, email, token, null, List.of());
     // Controlled operator provisioning is a fixture, never a public privilege-grant API.
     jdbc.update(

@@ -99,9 +99,10 @@ class AgencyMandateTests {
 
     private Account account() throws Exception {
         String email = UUID.randomUUID() + "@example.com";
-        JsonNode registered = node(success("POST", "/api/v1/auth/register", Map.of("email", email, "password", PASSWORD, "displayName", "Property test"), null, 201));
+        JsonNode registered = node(success("POST", "/api/v1/auth/register", Map.of("email", email, "password", PASSWORD, "displayName", "Property test"), null, 202));
         JsonNode loggedIn = node(success("POST", "/api/v1/auth/login", Map.of("email", email, "password", PASSWORD), null, 200));
-        return new Account(UUID.fromString(registered.get("id").asText()), email, loggedIn.get("accessToken").asText());
+        jdbc.update("UPDATE app_users SET email_verified_at=now() WHERE email=?", email);
+        return new Account(jdbc.queryForObject("SELECT id FROM app_users WHERE email=?", UUID.class, email), email, loggedIn.get("accessToken").asText());
     }
 
     private void addMember(Portfolio portfolio, Account member, String role) throws Exception {

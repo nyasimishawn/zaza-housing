@@ -35,6 +35,9 @@ public class PropertyVideoRepository {
         return jdbc.query("SELECT * FROM property_videos WHERE property_id = ?" + (includeArchived ? "" : " AND status = 'ACTIVE'")
                 + " ORDER BY created_at, id LIMIT ? OFFSET ?", VIDEO, property, limit, offset);
     }
+    public int retainedCount(UUID property) {
+        return jdbc.queryForObject("SELECT count(*) FROM property_videos WHERE property_id = ?", Integer.class, property);
+    }
     public int activeCount(UUID property) {
         return jdbc.queryForObject("SELECT count(*) FROM property_videos WHERE property_id = ? AND status = 'ACTIVE'", Integer.class, property);
     }

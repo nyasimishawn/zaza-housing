@@ -47,6 +47,25 @@ class AuthRateLimitFilterTests {
     }
 
     @Test
+    void directMemberProvisioningIsRateLimited() throws Exception {
+        var filter = new AuthRateLimitFilter(Clock.systemUTC(), 1);
+        assertThat(attempt(filter, "/api/v1/organizations/o/members")).isEqualTo(204);
+        assertThat(attempt(filter, "/api/v1/organizations/o/members")).isEqualTo(429);
+    }
+
+    @Test
+    void actualInvitationCreationAndManagementRoutesAreRateLimited() throws Exception {
+        for (String path : java.util.List.of(
+                "/api/v1/organizations/o/invitations",
+                "/api/v1/organizations/o/invitations/i/resend",
+                "/api/v1/organizations/o/invitations/i/cancel")) {
+            var filter = new AuthRateLimitFilter(Clock.systemUTC(), 1);
+            assertThat(attempt(filter, path)).isEqualTo(204);
+            assertThat(attempt(filter, path)).isEqualTo(429);
+        }
+    }
+
+    @Test
     void documentPreviewsDoNotConsumePasswordAttemptQuota() throws Exception {
         var filter=new AuthRateLimitFilter(Clock.systemUTC(),1);
         assertThat(attempt(filter,"/api/v1/me/leases/a/terminations/preview")).isEqualTo(204);

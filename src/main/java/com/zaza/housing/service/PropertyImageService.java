@@ -40,18 +40,21 @@ public class PropertyImageService {
     private final PropertyImageRepository images;
     private final LocalImageStorageRepository storage;
     private final AuditService audit;
+    private final MediaQuotaService quotas;
 
     public PropertyImageService(PropertyService properties, PropertyImageRepository images,
-            LocalImageStorageRepository storage, AuditService audit) {
-        this.properties = properties; this.images = images; this.storage = storage; this.audit = audit;
+            LocalImageStorageRepository storage, AuditService audit, MediaQuotaService quotas) {
+        this.properties = properties; this.images = images; this.storage = storage; this.audit = audit; this.quotas = quotas;
     }
 
     @Transactional
     public PropertyImageResponse upload(AuthenticatedUser actor, UUID organization, UUID propertyId, MultipartFile file, String altText) {
-        requireOpen(properties.lockForManagement(actor, organization, propertyId));
-        checkCapacity(propertyId);
+        Property property = properties.lockForManagement(actor, organization, propertyId);
+        requireOpen(property);
+        checkUploadCapacity(propertyId);
         if (altText == null || altText.length() > 200) throw new ApiException(HttpStatus.BAD_REQUEST, "Image description must contain at most 200 characters.");
         var processed = ImageProcessor.process(file);
+        quotas.requireCapacity(actor.id(), property.ownerOrganizationId(), processed.bytes().length);
         final String key;
         try { key = storage.save(processed); }
         catch (IOException error) { throw new ApiException(ApiErrorCode.STORAGE_UNAVAILABLE, "Image storage is unavailable. Try again later.", error); }
@@ -143,8 +146,14 @@ public class PropertyImageService {
                 image.byteSize(), image.status(), image.version(), "/api/v1/organizations/" + organization + "/properties/" + image.propertyId()
                 + "/images/" + image.id() + "/content", image.createdAt(), image.updatedAt());
     }
+    private void checkUploadCapacity(UUID propertyId) {
+        checkCapacity(propertyId);
+        if (images.retainedCount(propertyId) >= MediaQuotaService.RETAINED_IMAGES)
+            throw new ApiException(HttpStatus.CONFLICT, "The property retained-images limit has been reached. Archived media counts toward this limit.");
+    }
     private void checkCapacity(UUID propertyId) {
-        if (images.activeCount(propertyId) >= 30) throw new ApiException(HttpStatus.CONFLICT, "A property can have at most 30 active images.");
+        if (images.activeCount(propertyId) >= MediaQuotaService.ACTIVE_IMAGES)
+            throw new ApiException(HttpStatus.CONFLICT, "A property can have at most 30 active images.");
     }
     private static void requireOpen(Property property) {
         if (property.status() == PropertyStatus.ARCHIVED) throw new ApiException(HttpStatus.CONFLICT, "Restore the property before editing images.");

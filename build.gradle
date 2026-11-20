@@ -7,6 +7,13 @@ plugins {
 group = 'com.zaza'
 version = '0.0.1-SNAPSHOT'
 
+// Keep the Jackson modules aligned while overriding the reviewed vulnerable runtime set.
+ext['jackson-bom.version'] = '3.1.7'
+ext['tomcat.version'] = '11.0.27'
+dependencyManagement {
+    dependencies { dependency 'com.google.guava:guava:33.7.2-jre' }
+}
+
 // Optional local output directory for projects stored in cloud-synced folders.
 def localBuildDirectory = providers.environmentVariable('ZAZA_BUILD_DIR')
 if (localBuildDirectory.isPresent()) {

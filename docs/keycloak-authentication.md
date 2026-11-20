@@ -59,10 +59,13 @@ No public Keycloak admin/token/role-assignment diagnostic endpoints are exposed.
 
 ## HTTP contract
 
-Existing routes and account response fields remain available:
+Account routes remain available, with a generic public registration acknowledgement:
 
-* `POST /api/v1/auth/register`: `{email,password,displayName}`. Creates a regular
-  Keycloak identity and a linked Zaza account. No caller-supplied role is accepted.
+* `POST /api/v1/auth/register`: `{email,password,displayName}`. Returns HTTP 202
+  with the same `{message}` acknowledgement for a new or existing identity, without
+  returning account fields. New requests create a regular Keycloak identity and a
+  linked Zaza account; existing accounts and passwords are unchanged. No
+  caller-supplied role is accepted. Sign in separately or use account recovery.
 * `POST /api/v1/auth/login`: `{email,password,code?,recoveryCode?}`. Returns
   `{accessToken,tokenType,expiresAt,user,refreshToken,refreshExpiresAt}`. In Keycloak
   mode, `accessToken` is a Keycloak JWT. Local mode returns null refresh fields.

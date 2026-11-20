@@ -49,12 +49,17 @@ class KeycloakAuthenticationTests {
     String email = UUID.randomUUID() + "@example.com";
     var registered = call("POST", "/api/v1/auth/register", Map.of("email", email,
         "password", PASSWORD, "displayName", "Keycloak User", "platformRole", "PLATFORM_ADMIN"), null);
-    assertThat(registered.statusCode()).isEqualTo(201);
-    var user = json.readTree(registered.body());
-    assertThat(user.get("platformRole").asText()).isEqualTo("USER");
+    assertThat(registered.statusCode()).isEqualTo(202);
+    assertThat(registered.body()).doesNotContain("platformRole", "displayName", email);
+    var duplicate = call("POST", "/api/v1/auth/register", Map.of("email", email,
+        "password", "Untrusted-new-password-42", "displayName", "Different name"), null);
+    assertThat(duplicate.statusCode()).isEqualTo(202);
+    assertThat(duplicate.body()).isEqualTo(registered.body());
     assertThat(call("POST", "/api/v1/auth/login", Map.of("email", email,
         "password", "Incorrect-password-42"), null).statusCode()).isEqualTo(401);
     var first = login(email);
+    var user = first.get("user");
+    assertThat(user.get("platformRole").asText()).isEqualTo("USER");
     String access = first.get("accessToken").asText();
     String refresh = first.get("refreshToken").asText();
     assertThat(access.split("\\.")).hasSize(3);
@@ -200,7 +205,7 @@ class KeycloakAuthenticationTests {
 
   private JsonNode registeredLogin() throws Exception {
     String email = UUID.randomUUID() + "@example.com";
-    assertThat(call("POST", "/api/v1/auth/register", Map.of("email", email, "password", PASSWORD, "displayName", "Keycloak Tester"), null).statusCode()).isEqualTo(201);
+    assertThat(call("POST", "/api/v1/auth/register", Map.of("email", email, "password", PASSWORD, "displayName", "Keycloak Tester"), null).statusCode()).isEqualTo(202);
     return login(email);
   }
 

@@ -433,9 +433,10 @@ class RentalApplicationTests {
     private String organization(Account actor, String type) throws Exception { return node(call("POST", "/api/v1/organizations", Map.of("name", "Application organization", "type", type), actor.token, 201)).get("id").asText(); }
     private Account account() throws Exception {
         String email = UUID.randomUUID() + "@example.com";
-        JsonNode user = node(call("POST", "/api/v1/auth/register", Map.of("email", email, "password", PASSWORD, "displayName", "Application test"), null, 201));
+        JsonNode user = node(call("POST", "/api/v1/auth/register", Map.of("email", email, "password", PASSWORD, "displayName", "Application test"), null, 202));
         JsonNode login = node(call("POST", "/api/v1/auth/login", Map.of("email", email, "password", PASSWORD), null, 200));
-        return new Account(UUID.fromString(user.get("id").asText()), email, login.get("accessToken").asText());
+        jdbc.update("UPDATE app_users SET email_verified_at=now() WHERE email=?", email);
+        return new Account(jdbc.queryForObject("SELECT id FROM app_users WHERE email=?", UUID.class, email), email, login.get("accessToken").asText());
     }
     private URI uri(String path) { return URI.create("http://127.0.0.1:" + port + path); }
     private JsonNode node(HttpResponse<String> response) { return json.readTree(response.body()); }

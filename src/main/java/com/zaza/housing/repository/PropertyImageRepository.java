@@ -35,6 +35,9 @@ public class PropertyImageRepository {
         return jdbc.query("SELECT * FROM property_images WHERE property_id = ?" + (includeArchived ? "" : " AND status = 'ACTIVE'")
                 + " ORDER BY created_at, id LIMIT ? OFFSET ?", IMAGE, property, limit, offset);
     }
+    public int retainedCount(UUID property) {
+        return jdbc.queryForObject("SELECT count(*) FROM property_images WHERE property_id = ?", Integer.class, property);
+    }
     public int activeCount(UUID property) {
         return jdbc.queryForObject("SELECT count(*) FROM property_images WHERE property_id = ? AND status = 'ACTIVE'", Integer.class, property);
     }

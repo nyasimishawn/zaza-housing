@@ -4,6 +4,7 @@ import com.zaza.housing.dto.ChangePropertyManagementRequest;
 import com.zaza.housing.dto.ChangePropertyStatusRequest;
 import com.zaza.housing.dto.ChangeUnitStatusRequest;
 import com.zaza.housing.dto.PropertyDetails;
+import com.zaza.housing.dto.PropertyMediaQuotaResponse;
 import com.zaza.housing.dto.UnitDetails;
 import com.zaza.housing.dto.UpdatePropertyRequest;
 import com.zaza.housing.dto.UpdateUnitRequest;
@@ -18,6 +19,8 @@ import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -55,6 +58,14 @@ public class PropertyController {
     @GetMapping("/{id}")
     public Property get(@AuthenticationPrincipal AuthenticatedUser actor, @PathVariable UUID organizationId, @PathVariable UUID id) {
         return properties.get(actor, organizationId, id);
+    }
+
+    @GetMapping("/{id}/media-quota")
+    public ResponseEntity<PropertyMediaQuotaResponse> mediaQuota(
+            @AuthenticationPrincipal AuthenticatedUser actor, @PathVariable UUID organizationId,
+            @PathVariable UUID id) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(properties.mediaQuota(actor, organizationId, id));
     }
 
     @PutMapping("/{id}")

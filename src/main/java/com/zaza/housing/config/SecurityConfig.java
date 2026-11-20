@@ -45,7 +45,8 @@ public class SecurityConfig {
       KeycloakSettings keycloak,
       org.springframework.beans.factory.ObjectProvider<org.springframework.security.oauth2.jwt.JwtDecoder> decoder,
       @Qualifier("corsConfiguration") CorsConfigurationSource corsConfiguration,
-      @Value("${zaza.auth.requests-per-minute}") int authLimit)
+      @Value("${zaza.auth.requests-per-minute}") int authLimit,
+      @Value("${zaza.discovery.tile-requests-per-minute:600}") int tileLimit)
       throws Exception {
     return http.csrf(AbstractHttpConfigurer::disable)
         .cors(cors -> cors.configurationSource(corsConfiguration))
@@ -110,6 +111,9 @@ public class SecurityConfig {
             SessionAuthenticationFilter.class)
         .addFilterBefore(
             new AuthRateLimitFilter(clock, authLimit), SessionAuthenticationFilter.class)
+        .addFilterBefore(
+            new com.zaza.housing.filter.MapTileRateLimitFilter(clock, tileLimit),
+            SessionAuthenticationFilter.class)
         .build();
   }
 

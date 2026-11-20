@@ -16,7 +16,11 @@ public class LocalVideoStorageRepository {
     public LocalVideoStorageRepository(@Value("${zaza.videos.directory}") String directory) throws IOException {
         this.directory = Files.createDirectories(Path.of(directory).toAbsolutePath().normalize());
     }
-    public Path createWorkspace() throws IOException { return Files.createTempDirectory(directory, ".processing-"); }
+    public Path createWorkspace() throws IOException {
+        if (Files.getFileStore(directory).getUsableSpace() < 356L * 1024 * 1024)
+            throw new IOException("Video storage reserve reached");
+        return Files.createTempDirectory(directory, ".processing-");
+    }
     public void removeWorkspace(Path workspace) throws IOException {
         if (!workspace.getParent().equals(directory) || !workspace.getFileName().toString().startsWith(".processing-")) {
             throw new IllegalArgumentException("Invalid video workspace");
@@ -26,6 +30,8 @@ public class LocalVideoStorageRepository {
         Files.deleteIfExists(workspace);
     }
     public String save(Path processed) throws IOException {
+        if (Files.getFileStore(directory).getUsableSpace() < 256L * 1024 * 1024)
+            throw new IOException("Video storage reserve reached");
         String key = UUID.randomUUID() + ".mp4";
         try { Files.move(processed, path(key), StandardCopyOption.ATOMIC_MOVE); }
         catch (AtomicMoveNotSupportedException error) { Files.move(processed, path(key)); }

@@ -1,7 +1,7 @@
 name: zaza-auth
 services:
   keycloak:
-    image: quay.io/keycloak/keycloak:26.5.7
+    image: quay.io/keycloak/keycloak:26.8.2
     command: ["start-dev", "--import-realm"]
     ports:
       - "127.0.0.1:9080:8080"

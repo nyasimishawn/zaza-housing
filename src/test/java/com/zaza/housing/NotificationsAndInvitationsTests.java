@@ -184,9 +184,8 @@ class NotificationsAndInvitationsTests extends AdministrationTestSupport {
             "POST",
             "/api/v1/auth/register",
             Map.of("email", email, "password", PASSWORD, "displayName", "New invitee"),
-            null,
-            201);
-    UUID id = UUID.fromString(registered.get("id").asText());
+            null, 202);
+    UUID id = jdbc.queryForObject("SELECT id FROM app_users WHERE email=?", UUID.class, email);
     jdbc.update("UPDATE app_users SET email_verified_at=now() WHERE id=?", id);
     String token =
         ok("POST", "/api/v1/auth/login", Map.of("email", email, "password", PASSWORD), null, 200)
@@ -705,8 +704,8 @@ class NotificationsAndInvitationsTests extends AdministrationTestSupport {
     String id = reminder.get("id").asText();
     assertThat(ok("POST", N + "/reminders", r, a.token(), 201).get("id").asText()).isEqualTo(id);
     jdbc.update(
-        "UPDATE notification_reminders SET due_at=now()-interval '2 days' WHERE id=?",
-        UUID.fromString(id));
+        "UPDATE notification_reminders SET due_at=? WHERE id=?",
+        java.sql.Timestamp.from(Instant.now().minus(Duration.ofDays(2)).minusSeconds(1)), UUID.fromString(id));
     workspace.remindersDue();
     workspace.remindersDue();
     assertThat(ok("GET", N + "?category=REMINDERS", null, a.token(), 200).size()).isEqualTo(1);

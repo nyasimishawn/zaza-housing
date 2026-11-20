@@ -298,9 +298,10 @@ class PublicListingTests {
     }
     private Account account() throws Exception {
         String email = UUID.randomUUID() + "@example.com";
-        JsonNode registered = node(success("POST", "/api/v1/auth/register", Map.of("email", email, "password", PASSWORD, "displayName", "Listing test"), null, 201));
+        JsonNode registered = node(success("POST", "/api/v1/auth/register", Map.of("email", email, "password", PASSWORD, "displayName", "Listing test"), null, 202));
         JsonNode login = node(success("POST", "/api/v1/auth/login", Map.of("email", email, "password", PASSWORD), null, 200));
-        return new Account(UUID.fromString(registered.get("id").asText()), email, login.get("accessToken").asText());
+        jdbc.update("UPDATE app_users SET email_verified_at=now() WHERE email=?", email);
+        return new Account(jdbc.queryForObject("SELECT id FROM app_users WHERE email=?", UUID.class, email), email, login.get("accessToken").asText());
     }
     private String organization(Account actor, String type) throws Exception {
         return node(success("POST", "/api/v1/organizations", Map.of("name", "Listing test organization", "type", type), actor.token, 201)).get("id").asText();

@@ -53,7 +53,7 @@ class CaretakerOccupancyTests {
 
   @BeforeEach
   void resetClock() {
-    clock.now = Instant.parse("2026-11-01T12:00:00Z");
+    clock.reset();
   }
 
   private String care(Inventory i) {
@@ -834,18 +834,16 @@ class CaretakerOccupancyTests {
 
   private Account account() throws Exception {
     String email = UUID.randomUUID() + "@example.com";
-    UUID id =
-        id(
-            node(
-                call(
+    call(
                     "POST",
                     "/api/v1/auth/register",
                     Map.of("email", email, "password", PASSWORD, "displayName", "Lease Account"),
-                    null,
-                    201)));
+                    null, 202);
+    UUID id = jdbc.queryForObject("SELECT id FROM app_users WHERE email=?", UUID.class, email);
     Account account = new Account(id, email);
     login(account);
-    return account;
+    jdbc.update("UPDATE app_users SET email_verified_at=now() WHERE email=?", email);
+        return account;
   }
 
   private void login(Account account) throws Exception {
@@ -950,7 +948,15 @@ class CaretakerOccupancyTests {
   }
 
   static class CaretakerClock extends Clock {
-    volatile Instant now = Instant.now();
+    // PostgreSQL and Bean Validation use real time. Keep manual time travel
+    // while advancing with elapsed time so new rows cannot postdate observations.
+    volatile Instant now = Instant.now().plusSeconds(1);
+    private volatile long originNanos = System.nanoTime();
+
+    void reset() {
+      now = Instant.now().plusSeconds(1);
+      originNanos = System.nanoTime();
+    }
 
     void days(long days) {
       now = now.plus(Duration.ofDays(days));
@@ -963,12 +969,12 @@ class CaretakerOccupancyTests {
 
     @Override
     public Clock withZone(ZoneId zone) {
-      return Clock.fixed(now, zone);
+      return Clock.fixed(instant(), zone);
     }
 
     @Override
     public Instant instant() {
-      return now;
+      return now.plusNanos(System.nanoTime() - originNanos);
     }
   }
 }

@@ -43,12 +43,13 @@ public class PropertyVideoService {
     private final PropertyVideoRepository videos;
     private final LocalVideoStorageRepository storage;
     private final AuditService audit;
+    private final MediaQuotaService quotas;
     private final VideoProcessingService processing;
     private final TransactionTemplate transactions;
 
     public PropertyVideoService(PropertyService properties, PropertyVideoRepository videos,
-            LocalVideoStorageRepository storage, AuditService audit, VideoProcessingService processing, PlatformTransactionManager manager) {
-        this.properties = properties; this.videos = videos; this.storage = storage; this.audit = audit;
+            LocalVideoStorageRepository storage, AuditService audit, VideoProcessingService processing, PlatformTransactionManager manager, MediaQuotaService quotas) {
+        this.properties = properties; this.videos = videos; this.storage = storage; this.audit = audit; this.quotas = quotas;
         this.processing = processing; this.transactions = new TransactionTemplate(manager);
     }
 
@@ -56,8 +57,11 @@ public class PropertyVideoService {
         if (caption == null || caption.length() > 200) throw new ApiException(HttpStatus.BAD_REQUEST, "Video caption must contain at most 200 characters.");
         // Encoding runs without a database transaction or property locks.
         transactions.executeWithoutResult(status -> {
-            requireOpen(properties.lockForManagement(actor, organization, propertyId));
-            checkCapacity(propertyId);
+            Property property = properties.lockForManagement(actor, organization, propertyId);
+            requireOpen(property);
+            checkUploadCapacity(propertyId);
+            // A positive output needs room for at least one byte. Check the actual encoded size at commit.
+            quotas.requireCapacity(actor.id(), property.ownerOrganizationId(), 1);
         });
         final Path workspace;
         try { workspace = storage.createWorkspace(); }
@@ -66,8 +70,10 @@ public class PropertyVideoService {
             ProcessedVideo processed = processing.process(file, workspace);
             return transactions.execute(status -> {
                 // Memberships, delegation, archival, and capacity may have changed during processing.
-                requireOpen(properties.lockForManagement(actor, organization, propertyId));
-                checkCapacity(propertyId);
+                Property property = properties.lockForManagement(actor, organization, propertyId);
+                requireOpen(property);
+                checkUploadCapacity(propertyId);
+                quotas.requireCapacity(actor.id(), property.ownerOrganizationId(), processed.byteSize());
                 final String key;
                 try { key = storage.save(processed.path()); }
                 catch (IOException error) { throw storageUnavailable(error); }
@@ -169,8 +175,14 @@ public class PropertyVideoService {
                 video.byteSize(), video.status(), video.version(), "/api/v1/organizations/" + organization + "/properties/" + video.propertyId()
                 + "/videos/" + video.id() + "/content", video.createdAt(), video.updatedAt());
     }
+    private void checkUploadCapacity(UUID propertyId) {
+        checkCapacity(propertyId);
+        if (videos.retainedCount(propertyId) >= MediaQuotaService.RETAINED_VIDEOS)
+            throw new ApiException(HttpStatus.CONFLICT, "The property retained-videos limit has been reached. Archived media counts toward this limit.");
+    }
     private void checkCapacity(UUID propertyId) {
-        if (videos.activeCount(propertyId) >= 5) throw new ApiException(HttpStatus.CONFLICT, "A property can have at most 5 active videos.");
+        if (videos.activeCount(propertyId) >= MediaQuotaService.ACTIVE_VIDEOS)
+            throw new ApiException(HttpStatus.CONFLICT, "A property can have at most 5 active videos.");
     }
     private static void requireOpen(Property property) {
         if (property.status() == PropertyStatus.ARCHIVED) throw new ApiException(HttpStatus.CONFLICT, "Restore the property before editing videos.");
